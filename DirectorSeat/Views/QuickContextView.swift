@@ -17,7 +17,9 @@ private let castOptions = [
 struct QuickContextView: View {
     let ideaText: String
     @StateObject private var viewModel: QuickContextViewModel
+    @StateObject private var planViewModel = PlanGenerationViewModel()
     @Environment(\.dismiss) private var dismiss
+    @State private var showPlanGeneration = false
 
     init(ideaText: String, initialCard: Int = 1) {
         self.ideaText = ideaText
@@ -79,6 +81,13 @@ struct QuickContextView: View {
         .animation(.easeInOut(duration: 0.3), value: viewModel.currentCard)
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showPlanGeneration) {
+            if case .success(let plan) = planViewModel.state {
+                PlanPreviewView(plan: plan)
+            } else {
+                PlanGenerationLoadingView(viewModel: planViewModel)
+            }
+        }
     }
 
     private var card1View: some View {
@@ -162,7 +171,7 @@ struct QuickContextView: View {
 
             VStack(spacing: Theme.Spacing.md) {
                 Button {
-                    printCollectedData()
+                    startGeneration()
                 } label: {
                     Text("Skip")
                         .font(Theme.Typography.body)
@@ -170,7 +179,7 @@ struct QuickContextView: View {
                 }
 
                 DSPrimaryButton(title: "Create My Film") {
-                    printCollectedData()
+                    startGeneration()
                 }
             }
             .padding(.horizontal, Theme.Spacing.xl)
@@ -178,10 +187,15 @@ struct QuickContextView: View {
         }
     }
 
-    private func printCollectedData() {
-        print("Idea: \(ideaText)")
-        print("Cast: \(viewModel.castChoice.map { "\($0)" } ?? "none")")
-        print("Context: \(viewModel.contextText)")
+    private func startGeneration() {
+        showPlanGeneration = true
+        Task {
+            await planViewModel.generate(
+                idea: ideaText,
+                cast: viewModel.castChoice ?? .decideLater,
+                context: viewModel.contextText
+            )
+        }
     }
 }
 
