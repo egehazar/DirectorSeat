@@ -5,6 +5,9 @@ struct HomeView: View {
     @State private var showDebugChecklist = false
     @State private var showDebugPreview = false
     @State private var showDebugShooting = false
+    @State private var showDebugReview = false
+    @State private var showDebugAssembly = false
+    @StateObject private var debugPostState = PostProductionState()
 
     var body: some View {
         VStack {
@@ -14,6 +17,8 @@ struct HomeView: View {
                     Button("C") { showDebugChecklist = true }
                     Button("P") { showDebugPreview = true }
                     Button("S") { showDebugShooting = true }
+                    Button("R") { showDebugReview = true }
+                    Button("A") { showDebugAssembly = true }
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.Colors.textSecondary.opacity(0.15))
@@ -78,6 +83,20 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $showDebugShooting) {
             ShootingModeView(plan: .debugMock)
+        }
+        .navigationDestination(isPresented: $showDebugAssembly) {
+            PostProductionView(
+                videoURL: URL(fileURLWithPath: "/mock/assembled.mov"),
+                plan: .debugMock,
+                postState: debugPostState
+            )
+        }
+        .navigationDestination(isPresented: $showDebugReview) {
+            ShotReviewView(
+                plan: .debugMock,
+                capturedTakes: ShotReviewView.mockTakes,
+                selectedTakes: ShotReviewView.mockSelected
+            )
         }
     }
 }

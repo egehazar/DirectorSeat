@@ -9,6 +9,7 @@ struct ShootingModeView: View {
     @State private var showSkipConfirmation = false
     @State private var showInfoSheet = false
     @State private var showShotReview = false
+    @State private var showEndEarlyConfirmation = false
     @State private var isPulsing = false
     @State private var isBlinking = false
     @State private var reviewPlayer: AVPlayer?
@@ -34,7 +35,11 @@ struct ShootingModeView: View {
             viewModel.cleanup()
         }
         .navigationDestination(isPresented: $showShotReview) {
-            ShotReviewView(totalShots: viewModel.totalShots)
+            ShotReviewView(
+                plan: viewModel.plan,
+                capturedTakes: viewModel.capturedTakes,
+                selectedTakes: viewModel.selectedTakes
+            )
         }
         .onChange(of: viewModel.allShotsComplete) { _, complete in
             if complete { showShotReview = true }
@@ -141,9 +146,16 @@ struct ShootingModeView: View {
         }
         .confirmationDialog("Pause shoot", isPresented: $showExitConfirmation) {
             Button("Pause") { dismiss() }
+            Button("End Shoot Early") { showEndEarlyConfirmation = true }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Your progress will be saved.")
+        }
+        .alert("End shoot early?", isPresented: $showEndEarlyConfirmation) {
+            Button("End & Review", role: .destructive) { showShotReview = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your captured shots will be saved. You can review what you have so far.")
         }
         .sheet(isPresented: $showInfoSheet) {
             shotInfoSheet
