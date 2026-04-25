@@ -6,7 +6,10 @@ struct PostProductionView: View {
     let plan: FilmmakingPlan
     @ObservedObject var postState: PostProductionState
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var exportState = ExportState()
     @State private var player: AVPlayer?
+    @State private var showPaywall = false
+    @State private var showExportFlow = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,7 +63,7 @@ struct PostProductionView: View {
 
             VStack(spacing: Theme.Spacing.sm) {
                 DSPrimaryButton(title: "Export My Film") {
-                    print("Going to export flow")
+                    showPaywall = true
                 }
 
                 Text("Next: save and share.")
@@ -72,6 +75,22 @@ struct PostProductionView: View {
         }
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showPaywall, onDismiss: {
+            if exportState.userChoseExport {
+                exportState.userChoseExport = false
+                exportState.startRender(plan: plan, assembledURL: videoURL, state: postState)
+                showExportFlow = true
+            }
+        }) {
+            PaywallView(exportState: exportState)
+        }
+        .fullScreenCover(isPresented: $showExportFlow) {
+            if case .success(let url) = exportState.phase {
+                ExportSuccessView(url: url, filmTitle: postState.filmTitle)
+            } else {
+                ExportRenderingView(exportState: exportState)
+            }
+        }
         .onAppear {
             if postState.filmTitle.isEmpty {
                 postState.filmTitle = String(plan.logline.prefix(60))

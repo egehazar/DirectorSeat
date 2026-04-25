@@ -7,7 +7,10 @@ struct HomeView: View {
     @State private var showDebugShooting = false
     @State private var showDebugReview = false
     @State private var showDebugAssembly = false
+    @State private var showDebugExport = false
+    @State private var showDebugPaywall = false
     @StateObject private var debugPostState = PostProductionState()
+    @StateObject private var debugExportState = ExportState()
 
     var body: some View {
         VStack {
@@ -19,6 +22,8 @@ struct HomeView: View {
                     Button("S") { showDebugShooting = true }
                     Button("R") { showDebugReview = true }
                     Button("A") { showDebugAssembly = true }
+                    Button("E") { showDebugExport = true }
+                    Button("PW") { showDebugPaywall = true }
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.Colors.textSecondary.opacity(0.15))
@@ -90,6 +95,15 @@ struct HomeView: View {
                 plan: .debugMock,
                 postState: debugPostState
             )
+        }
+        .navigationDestination(isPresented: $showDebugExport) {
+            ExportSuccessView(
+                url: URL(fileURLWithPath: "/mock/final.mp4"),
+                filmTitle: "A mysterious note in a library book"
+            )
+        }
+        .sheet(isPresented: $showDebugPaywall) {
+            PaywallView(exportState: debugExportState)
         }
         .navigationDestination(isPresented: $showDebugReview) {
             ShotReviewView(
