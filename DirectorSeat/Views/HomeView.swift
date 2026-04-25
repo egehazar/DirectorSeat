@@ -2,11 +2,24 @@ import SwiftUI
 
 struct HomeView: View {
     @State private var showIdeaIntake = false
+    @State private var showDebugChecklist = false
+    @State private var showDebugPreview = false
 
     var body: some View {
         VStack {
+            HStack {
+                Spacer()
+                VStack(spacing: 4) {
+                    Button("C") { showDebugChecklist = true }
+                    Button("P") { showDebugPreview = true }
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.Colors.textSecondary.opacity(0.15))
+            }
+            .padding(.horizontal, Theme.Spacing.lg)
+
             Spacer()
-                .frame(minHeight: 100)
+                .frame(minHeight: 60)
 
             Spacer()
 
@@ -54,6 +67,12 @@ struct HomeView: View {
         .background(Theme.Colors.background.ignoresSafeArea())
         .navigationDestination(isPresented: $showIdeaIntake) {
             IdeaIntakeView()
+        }
+        .navigationDestination(isPresented: $showDebugChecklist) {
+            SetupChecklistView(plan: .debugMock)
+        }
+        .navigationDestination(isPresented: $showDebugPreview) {
+            PlanPreviewView(plan: .debugMock)
         }
     }
 }

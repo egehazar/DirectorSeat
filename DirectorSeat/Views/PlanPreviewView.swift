@@ -3,6 +3,7 @@ import SwiftUI
 struct PlanPreviewView: View {
     let plan: FilmmakingPlan
     @Environment(\.dismiss) private var dismiss
+    @State private var showChecklist = false
 
     private var totalShots: Int {
         plan.scenes.reduce(0) { $0 + $1.shots.count }
@@ -102,7 +103,7 @@ struct PlanPreviewView: View {
 
             VStack(spacing: Theme.Spacing.sm) {
                 DSPrimaryButton(title: "Let's Shoot") {
-                    print("Shooting mode next")
+                    showChecklist = true
                 }
 
                 Text("Next: setup checklist")
@@ -114,6 +115,9 @@ struct PlanPreviewView: View {
         }
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showChecklist) {
+            SetupChecklistView(plan: plan)
+        }
     }
 }
 
