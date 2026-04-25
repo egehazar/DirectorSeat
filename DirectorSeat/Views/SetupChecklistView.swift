@@ -4,6 +4,7 @@ struct SetupChecklistView: View {
     let plan: FilmmakingPlan
     @Environment(\.dismiss) private var dismiss
     @State private var checkedItems: Set<String> = []
+    @State private var showShootingMode = false
 
     private var items: [ChecklistItem] {
         var list: [ChecklistItem] = []
@@ -155,7 +156,7 @@ struct SetupChecklistView: View {
 
             VStack(spacing: Theme.Spacing.sm) {
                 DSPrimaryButton(title: "I'm Ready to Shoot") {
-                    print("Going to Shooting Mode")
+                    showShootingMode = true
                 }
 
                 Text("Tap when you're set up.")
@@ -167,6 +168,9 @@ struct SetupChecklistView: View {
         }
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showShootingMode) {
+            ShootingModeView(plan: plan)
+        }
     }
 
     @ViewBuilder

@@ -4,6 +4,7 @@ struct HomeView: View {
     @State private var showIdeaIntake = false
     @State private var showDebugChecklist = false
     @State private var showDebugPreview = false
+    @State private var showDebugShooting = false
 
     var body: some View {
         VStack {
@@ -12,6 +13,7 @@ struct HomeView: View {
                 VStack(spacing: 4) {
                     Button("C") { showDebugChecklist = true }
                     Button("P") { showDebugPreview = true }
+                    Button("S") { showDebugShooting = true }
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.Colors.textSecondary.opacity(0.15))
@@ -73,6 +75,9 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $showDebugPreview) {
             PlanPreviewView(plan: .debugMock)
+        }
+        .navigationDestination(isPresented: $showDebugShooting) {
+            ShootingModeView(plan: .debugMock)
         }
     }
 }
