@@ -11,7 +11,7 @@ enum Theme {
     }
 
     enum Typography {
-        static let title = Font.system(size: 34, weight: .bold)
+        static let title = Font.system(size: 22, weight: .semibold)
         static let heroTitle = Font.system(size: 28, weight: .semibold)
         static let headline = Font.system(size: 22, weight: .semibold)
         static let body = Font.system(size: 17, weight: .regular)
