@@ -21,6 +21,8 @@ class ShootingModeViewModel: ObservableObject {
     @Published var allShotsComplete = false
     @Published var permissionGranted: Bool?
     @Published var recordingDuration: TimeInterval = 0
+    @Published var showRecordingError = false
+    @Published var cameraStartError = false
 
     private var countdownTimer: Timer?
     private var recordingTimer: Timer?
@@ -39,8 +41,19 @@ class ShootingModeViewModel: ObservableObject {
 
     init(plan: FilmmakingPlan) {
         self.plan = plan
-        cameraService.onRecordingFinished = { [weak self] url in
-            self?.handleRecordingFinished(url: url)
+        cameraService.onRecordingFinished = { [weak self] result in
+            switch result {
+            case .success(let url):
+                let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+                print("[DirectorSeat] Recording stopped, file size: \(size) bytes")
+                self?.handleRecordingFinished(url: url)
+            case .failure(let error):
+                print("[DirectorSeat] Recording error: \(error.localizedDescription)")
+                self?.recordingTimer?.invalidate()
+                self?.recordingTimer = nil
+                self?.recordingState = .idle
+                self?.showRecordingError = true
+            }
         }
     }
 
@@ -48,11 +61,15 @@ class ShootingModeViewModel: ObservableObject {
         let granted = await cameraService.requestPermissions()
         permissionGranted = granted
         if granted {
-            cameraService.startSession()
+            let started = cameraService.startSession()
+            if !started {
+                cameraStartError = true
+            }
         }
     }
 
     func startRecording() {
+        guard recordingState == .idle else { return }
         recordingState = .countingDown
         countdownValue = 3
 
@@ -68,6 +85,7 @@ class ShootingModeViewModel: ObservableObject {
     }
 
     func stopRecording() {
+        guard recordingState == .recording else { return }
         recordingTimer?.invalidate()
         recordingTimer = nil
         cameraService.stopRecording()
@@ -76,6 +94,7 @@ class ShootingModeViewModel: ObservableObject {
     func useTake() {
         guard case .reviewing(let url) = recordingState else { return }
         selectedTakes[currentShotIndex] = url
+        print("[DirectorSeat] Take selected for shot \(currentShotNumber)")
         advanceToNextShot()
     }
 
@@ -92,6 +111,7 @@ class ShootingModeViewModel: ObservableObject {
             currentShotIndex += 1
             recordingState = .idle
         } else {
+            print("[DirectorSeat] All shots captured, ready to assemble")
             allShotsComplete = true
         }
     }
@@ -114,6 +134,7 @@ class ShootingModeViewModel: ObservableObject {
             self?.recordingDuration += 1
         }
 
+        print("[DirectorSeat] Recording started, file: \(url)")
         cameraService.startRecording(to: url)
     }
 

@@ -111,8 +111,7 @@ class VideoExportService {
             videoComposition = try await AVMutableVideoComposition.videoComposition(with: composition) { request in
                 var output = request.sourceImage.clampedToExtent()
 
-                if state.colorPreset != .original {
-                    let filter = CIFilter(name: "CIColorControls")!
+                if state.colorPreset != .original, let filter = CIFilter(name: "CIColorControls") {
                     filter.setValue(output, forKey: kCIInputImageKey)
                     switch state.colorPreset {
                     case .warm:
@@ -234,8 +233,9 @@ class VideoExportService {
         CVPixelBufferLockBaseAddress(buffer, [])
         if let context = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: Int(size.width), height: Int(size.height),
                                    bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue) {
-            context.draw(image.cgImage!, in: CGRect(origin: .zero, size: size))
+                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue),
+           let cgImage = image.cgImage {
+            context.draw(cgImage, in: CGRect(origin: .zero, size: size))
         }
         CVPixelBufferUnlockBaseAddress(buffer, [])
         return buffer

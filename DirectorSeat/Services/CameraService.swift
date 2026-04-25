@@ -4,8 +4,9 @@ class CameraService: NSObject, AVCaptureFileOutputRecordingDelegate {
     let session = AVCaptureSession()
     private let movieOutput = AVCaptureMovieFileOutput()
     let previewLayer: AVCaptureVideoPreviewLayer
+    private var isConfigured = false
 
-    var onRecordingFinished: ((URL) -> Void)?
+    var onRecordingFinished: ((Result<URL, Error>) -> Void)?
 
     override init() {
         previewLayer = AVCaptureVideoPreviewLayer(session: session)
@@ -31,33 +32,43 @@ class CameraService: NSObject, AVCaptureFileOutputRecordingDelegate {
         return cameraGranted && micGranted
     }
 
-    func startSession() {
-        guard !session.isRunning else { return }
+    @discardableResult
+    func startSession() -> Bool {
+        guard !session.isRunning else { return true }
 
-        session.beginConfiguration()
-        session.sessionPreset = .high
+        if !isConfigured {
+            session.beginConfiguration()
+            session.sessionPreset = .high
 
-        if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-           let videoInput = try? AVCaptureDeviceInput(device: camera),
-           session.canAddInput(videoInput) {
-            session.addInput(videoInput)
+            var hasVideo = false
+
+            if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+               let videoInput = try? AVCaptureDeviceInput(device: camera),
+               session.canAddInput(videoInput) {
+                session.addInput(videoInput)
+                hasVideo = true
+            }
+
+            if let mic = AVCaptureDevice.default(for: .audio),
+               let audioInput = try? AVCaptureDeviceInput(device: mic),
+               session.canAddInput(audioInput) {
+                session.addInput(audioInput)
+            }
+
+            if session.canAddOutput(movieOutput) {
+                session.addOutput(movieOutput)
+            }
+
+            session.commitConfiguration()
+            isConfigured = true
+
+            guard hasVideo else { return false }
         }
-
-        if let mic = AVCaptureDevice.default(for: .audio),
-           let audioInput = try? AVCaptureDeviceInput(device: mic),
-           session.canAddInput(audioInput) {
-            session.addInput(audioInput)
-        }
-
-        if session.canAddOutput(movieOutput) {
-            session.addOutput(movieOutput)
-        }
-
-        session.commitConfiguration()
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.session.startRunning()
         }
+        return true
     }
 
     func stopSession() {
@@ -79,7 +90,11 @@ class CameraService: NSObject, AVCaptureFileOutputRecordingDelegate {
 
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: (any Error)?) {
         DispatchQueue.main.async { [weak self] in
-            self?.onRecordingFinished?(outputFileURL)
+            if let error {
+                self?.onRecordingFinished?(.failure(error))
+            } else {
+                self?.onRecordingFinished?(.success(outputFileURL))
+            }
         }
     }
 }

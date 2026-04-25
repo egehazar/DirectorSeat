@@ -17,12 +17,14 @@ enum ColorPreset: String, CaseIterable, Identifiable {
 
 enum VideoAssemblyError: Error, LocalizedError {
     case noClips
+    case insufficientClips
     case assetFailure
     case exportFailure(String)
 
     var errorDescription: String? {
         switch self {
         case .noClips: "No clips to assemble."
+        case .insufficientClips: "Not enough valid clips to assemble."
         case .assetFailure: "Could not read one or more video clips."
         case .exportFailure(let msg): "Export failed: \(msg)"
         }
@@ -33,6 +35,9 @@ class VideoAssemblyService {
     func assembleClips(urls: [URL], outputURL: URL) async throws -> URL {
         guard !urls.isEmpty else { throw VideoAssemblyError.noClips }
 
+        let validURLs = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard validURLs.count >= 2 else { throw VideoAssemblyError.insufficientClips }
+
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
               let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
@@ -40,7 +45,7 @@ class VideoAssemblyService {
 
         var currentTime = CMTime.zero
 
-        for url in urls {
+        for url in validURLs {
             let asset = AVURLAsset(url: url)
             let duration: CMTime
             do {
@@ -94,6 +99,9 @@ class VideoAssemblyService {
 
         guard !urls.isEmpty else { throw VideoAssemblyError.noClips }
 
+        let validURLs = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard validURLs.count >= 2 else { throw VideoAssemblyError.insufficientClips }
+
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
               let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
@@ -101,7 +109,7 @@ class VideoAssemblyService {
 
         var currentTime = CMTime.zero
 
-        for url in urls {
+        for url in validURLs {
             let asset = AVURLAsset(url: url)
             let duration = try await asset.load(.duration)
 
@@ -126,7 +134,10 @@ class VideoAssemblyService {
             with: composition
         ) { request in
             let source = request.sourceImage.clampedToExtent()
-            let filter = CIFilter(name: "CIColorControls")!
+            guard let filter = CIFilter(name: "CIColorControls") else {
+                request.finish(with: request.sourceImage, context: nil)
+                return
+            }
             filter.setValue(source, forKey: kCIInputImageKey)
 
             switch colorPreset {
@@ -141,7 +152,7 @@ class VideoAssemblyService {
                 break
             }
 
-            let output = filter.outputImage!.cropped(to: request.sourceImage.extent)
+            let output = (filter.outputImage ?? source).cropped(to: request.sourceImage.extent)
             request.finish(with: output, context: nil)
         }
 

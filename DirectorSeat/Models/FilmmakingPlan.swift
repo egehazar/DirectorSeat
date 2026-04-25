@@ -97,6 +97,24 @@ extension FilmmakingPlan {
         musicMood: "Tense, suspenseful"
     )
 
+    static let fastTest = FilmmakingPlan(
+        logline: "A quick test of the shooting flow.",
+        estimatedDurationMinutes: 1,
+        estimatedTotalShootMinutes: 2,
+        scenes: [
+            FilmScene(sceneNumber: 1, description: "Three quick shots to test the full pipeline.", locationDescription: "Anywhere", castCount: 1, shots: [
+                Shot(shotNumber: 1, shotType: "wide", directionText: "Stand a few feet back from your phone. Wave at the camera.", cameraPlacement: "On any surface — shelf, table, stack of books", actorDirection: "Wave at the camera for a few seconds", dialogue: nil, estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 2, shotType: "medium", directionText: "Move closer. Smile and say: 'This is a test.'", cameraPlacement: "Same position", actorDirection: "Step closer, smile, say the line", dialogue: "This is a test.", estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 3, shotType: "close-up", directionText: "Get close. Hold your hand up to the camera, then drop it.", cameraPlacement: "Same position", actorDirection: "Hold hand up, pause, drop it", dialogue: nil, estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
+            ]),
+        ],
+        cast: [CastMember(roleName: "Tester", description: "You")],
+        requiredStoryProps: ["yourself"],
+        optionalSetupHelpers: [],
+        locationRequirements: ["Anywhere"],
+        musicMood: "ambient"
+    )
+
     static let debugMock = FilmmakingPlan(
         logline: "A solo reader discovers a mysterious handwritten note tucked inside a library book they checked out yesterday.",
         estimatedDurationMinutes: 4,

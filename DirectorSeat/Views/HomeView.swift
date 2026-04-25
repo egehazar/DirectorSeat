@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var showDebugAssembly = false
     @State private var showDebugExport = false
     @State private var showDebugPaywall = false
+    @State private var showDebugFastTest = false
     @StateObject private var debugPostState = PostProductionState()
     @StateObject private var debugExportState = ExportState()
 
@@ -21,9 +22,13 @@ struct HomeView: View {
                     Button("P") { showDebugPreview = true }
                     Button("S") { showDebugShooting = true }
                     Button("R") { showDebugReview = true }
-                    Button("A") { showDebugAssembly = true }
+                    Button("A") {
+                        debugPostState.assembledVideoURL = URL(fileURLWithPath: "/mock/assembled.mov")
+                        showDebugAssembly = true
+                    }
                     Button("E") { showDebugExport = true }
                     Button("PW") { showDebugPaywall = true }
+                    Button("X") { showDebugFastTest = true }
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.Colors.textSecondary.opacity(0.15))
@@ -91,7 +96,6 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $showDebugAssembly) {
             PostProductionView(
-                videoURL: URL(fileURLWithPath: "/mock/assembled.mov"),
                 plan: .debugMock,
                 postState: debugPostState
             )
@@ -104,6 +108,9 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showDebugPaywall) {
             PaywallView(exportState: debugExportState)
+        }
+        .navigationDestination(isPresented: $showDebugFastTest) {
+            ShootingModeView(plan: .fastTest)
         }
         .navigationDestination(isPresented: $showDebugReview) {
             ShotReviewView(

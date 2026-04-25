@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ExportRenderingView: View {
     @ObservedObject var exportState: ExportState
+    @Environment(\.dismiss) private var dismiss
     @State private var isSpinning = false
     @State private var showHint = false
 
@@ -14,31 +15,58 @@ struct ExportRenderingView: View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer()
 
-            Image(systemName: "film.stack")
-                .font(.system(size: 48))
-                .foregroundStyle(Theme.Colors.accent)
-                .rotationEffect(.degrees(isSpinning ? 360 : 0))
-                .animation(.linear(duration: 3).repeatForever(autoreverses: false), value: isSpinning)
+            if case .failure(let message) = exportState.phase {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.red)
 
-            Text("Rendering your film...")
-                .font(Theme.Typography.heroTitle)
-                .foregroundStyle(Theme.Colors.textPrimary)
+                Text("Export Failed")
+                    .font(Theme.Typography.heroTitle)
+                    .foregroundStyle(Theme.Colors.textPrimary)
 
-            Text("\(Int(progress * 100))%")
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.2), value: progress)
+                Text(message)
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Theme.Spacing.lg)
 
-            Text("This may take a moment.")
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Colors.textSecondary.opacity(0.6))
+                VStack(spacing: Theme.Spacing.sm) {
+                    DSPrimaryButton(title: "Try Again") {
+                        exportState.retry()
+                    }
 
-            if showHint {
-                Text("Feel free to put your phone down \u{2014} we'll notify you.")
+                    Button("Go Back") { dismiss() }
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+                .padding(.horizontal, Theme.Spacing.lg)
+            } else {
+                Image(systemName: "film.stack")
+                    .font(.system(size: 48))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .rotationEffect(.degrees(isSpinning ? 360 : 0))
+                    .animation(.linear(duration: 3).repeatForever(autoreverses: false), value: isSpinning)
+
+                Text("Rendering your film...")
+                    .font(Theme.Typography.heroTitle)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+
+                Text("\(Int(progress * 100))%")
+                    .font(Theme.Typography.body)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.2), value: progress)
+
+                Text("This may take a moment.")
                     .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Colors.textSecondary.opacity(0.5))
-                    .transition(.opacity)
+                    .foregroundStyle(Theme.Colors.textSecondary.opacity(0.6))
+
+                if showHint {
+                    Text("Feel free to put your phone down \u{2014} we'll notify you.")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary.opacity(0.5))
+                        .transition(.opacity)
+                }
             }
 
             Spacer()
@@ -50,16 +78,6 @@ struct ExportRenderingView: View {
             Task {
                 try? await Task.sleep(for: .seconds(5))
                 withAnimation { showHint = true }
-            }
-        }
-        .alert("Export Failed", isPresented: Binding(
-            get: { if case .failure = exportState.phase { return true } else { return false } },
-            set: { if !$0 { exportState.phase = .idle } }
-        )) {
-            Button("OK") { exportState.phase = .idle }
-        } message: {
-            if case .failure(let msg) = exportState.phase {
-                Text(msg)
             }
         }
     }

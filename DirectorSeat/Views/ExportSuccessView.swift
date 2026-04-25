@@ -11,6 +11,7 @@ struct ExportSuccessView: View {
     @State private var showCheckmark = false
     @State private var saveMessage: String?
     @State private var showSaveAlert = false
+    @State private var saveNeedsSettings = false
 
     private var isFirstExport: Bool {
         !UserDefaults.standard.bool(forKey: "hasExportedFirstFilm")
@@ -63,8 +64,16 @@ struct ExportSuccessView: View {
                         do {
                             try await state.saveToCameraRoll(url: url)
                             saveMessage = "Saved to your camera roll!"
+                            saveNeedsSettings = false
                         } catch {
-                            saveMessage = error.localizedDescription
+                            let msg = error.localizedDescription
+                            if msg.contains("denied") || msg.contains("access") {
+                                saveMessage = "DirectorSeat needs access to your photo library to save films. You can grant access in Settings."
+                                saveNeedsSettings = true
+                            } else {
+                                saveMessage = "Could not save to camera roll: \(msg)"
+                                saveNeedsSettings = false
+                            }
                         }
                         showSaveAlert = true
                     }
@@ -112,8 +121,21 @@ struct ExportSuccessView: View {
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: [url])
         }
-        .alert(saveMessage ?? "", isPresented: $showSaveAlert) {
-            Button("OK") {}
+        .alert(saveNeedsSettings ? "Photo Access Required" : (saveMessage ?? ""), isPresented: $showSaveAlert) {
+            if saveNeedsSettings {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } else {
+                Button("OK") {}
+            }
+        } message: {
+            if saveNeedsSettings {
+                Text(saveMessage ?? "")
+            }
         }
     }
 }

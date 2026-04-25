@@ -97,11 +97,7 @@ struct ShotReviewView: View {
             )
         }
         .navigationDestination(isPresented: $showPostFlow) {
-            if let url = postState.assembledVideoURL {
-                PostProductionView(videoURL: url, plan: plan, postState: postState)
-            } else {
-                AssemblyLoadingView(postState: postState, onDismiss: { showPostFlow = false })
-            }
+            PostProductionView(plan: plan, postState: postState)
         }
         .task {
             await loadThumbnails()

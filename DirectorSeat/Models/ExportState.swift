@@ -10,6 +10,7 @@ enum ExportPhase: Equatable {
     case failure(String)
 }
 
+@MainActor
 class ExportState: ObservableObject {
     @Published var phase: ExportPhase = .idle
     @Published var isPaid = false
@@ -17,6 +18,9 @@ class ExportState: ObservableObject {
     @Published var userChoseExport = false
 
     private let service = VideoExportService()
+    private var lastPlan: FilmmakingPlan?
+    private var lastAssembledURL: URL?
+    private var lastPostState: PostProductionState?
 
     func proceedWithWatermark() {
         includeWatermark = true
@@ -30,7 +34,11 @@ class ExportState: ObservableObject {
     }
 
     func startRender(plan: FilmmakingPlan, assembledURL: URL, state: PostProductionState) {
+        lastPlan = plan
+        lastAssembledURL = assembledURL
+        lastPostState = state
         phase = .rendering(progress: 0)
+        print("[DirectorSeat] Export started")
 
         Task {
             let progressTask = Task {
@@ -51,12 +59,19 @@ class ExportState: ObservableObject {
                     plan: plan
                 )
                 progressTask.cancel()
+                print("[DirectorSeat] Export complete: \(url)")
                 phase = .success(url)
             } catch {
                 progressTask.cancel()
+                print("[DirectorSeat] Export error: \(error.localizedDescription)")
                 phase = .failure(error.localizedDescription)
             }
         }
+    }
+
+    func retry() {
+        guard let plan = lastPlan, let url = lastAssembledURL, let state = lastPostState else { return }
+        startRender(plan: plan, assembledURL: url, state: state)
     }
 
     func saveToCameraRoll(url: URL) async throws {

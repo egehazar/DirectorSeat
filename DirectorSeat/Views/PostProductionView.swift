@@ -2,7 +2,6 @@ import AVKit
 import SwiftUI
 
 struct PostProductionView: View {
-    let videoURL: URL
     let plan: FilmmakingPlan
     @ObservedObject var postState: PostProductionState
     @Environment(\.dismiss) private var dismiss
@@ -12,6 +11,15 @@ struct PostProductionView: View {
     @State private var showExportFlow = false
 
     var body: some View {
+        if let videoURL = postState.assembledVideoURL {
+            postProductionContent(videoURL: videoURL)
+        } else {
+            AssemblyLoadingView(postState: postState, onDismiss: { dismiss() })
+        }
+    }
+
+    @ViewBuilder
+    private func postProductionContent(videoURL: URL) -> some View {
         VStack(spacing: 0) {
             ZStack {
                 Text("Post-Production")
@@ -85,11 +93,7 @@ struct PostProductionView: View {
             PaywallView(exportState: exportState)
         }
         .fullScreenCover(isPresented: $showExportFlow) {
-            if case .success(let url) = exportState.phase {
-                ExportSuccessView(url: url, filmTitle: postState.filmTitle)
-            } else {
-                ExportRenderingView(exportState: exportState)
-            }
+            ExportFlowView(exportState: exportState, filmTitle: postState.filmTitle)
         }
         .onAppear {
             if postState.filmTitle.isEmpty {
@@ -273,12 +277,29 @@ struct PostProductionView: View {
     }
 }
 
+private struct ExportFlowView: View {
+    @ObservedObject var exportState: ExportState
+    let filmTitle: String
+
+    var body: some View {
+        switch exportState.phase {
+        case .success(let url):
+            ExportSuccessView(url: url, filmTitle: filmTitle)
+        default:
+            ExportRenderingView(exportState: exportState)
+        }
+    }
+}
+
 #Preview {
     NavigationStack {
         PostProductionView(
-            videoURL: URL(fileURLWithPath: "/mock/assembled.mov"),
             plan: .debugMock,
-            postState: PostProductionState()
+            postState: {
+                let state = PostProductionState()
+                state.assembledVideoURL = URL(fileURLWithPath: "/mock/assembled.mov")
+                return state
+            }()
         )
     }
 }

@@ -13,6 +13,7 @@ struct ShootingModeView: View {
     @State private var isPulsing = false
     @State private var isBlinking = false
     @State private var reviewPlayer: AVPlayer?
+    @Environment(\.scenePhase) private var scenePhase
 
     init(plan: FilmmakingPlan) {
         _viewModel = StateObject(wrappedValue: ShootingModeViewModel(plan: plan))
@@ -51,6 +52,21 @@ struct ShootingModeView: View {
             } else {
                 reviewPlayer = nil
             }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active, viewModel.permissionGranted == false {
+                Task { await viewModel.requestPermissions() }
+            }
+        }
+        .alert("Recording Failed", isPresented: $viewModel.showRecordingError) {
+            Button("OK") {}
+        } message: {
+            Text("Recording failed. Please try again.")
+        }
+        .alert("Camera Unavailable", isPresented: $viewModel.cameraStartError) {
+            Button("OK") { dismiss() }
+        } message: {
+            Text("Could not access the camera. It may be in use by another app. Please close other camera apps and try again.")
         }
     }
 

@@ -82,11 +82,7 @@ struct QuickContextView: View {
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showPlanGeneration) {
-            if case .success(let plan) = planViewModel.state {
-                PlanPreviewView(plan: plan)
-            } else {
-                PlanGenerationLoadingView(viewModel: planViewModel)
-            }
+            PlanGenerationFlowView(viewModel: planViewModel)
         }
     }
 
@@ -195,6 +191,19 @@ struct QuickContextView: View {
                 cast: viewModel.castChoice ?? .decideLater,
                 context: viewModel.contextText
             )
+        }
+    }
+}
+
+private struct PlanGenerationFlowView: View {
+    @ObservedObject var viewModel: PlanGenerationViewModel
+
+    var body: some View {
+        switch viewModel.state {
+        case .success(let plan):
+            PlanPreviewView(plan: plan)
+        default:
+            PlanGenerationLoadingView(viewModel: viewModel)
         }
     }
 }

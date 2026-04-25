@@ -1,21 +1,33 @@
 import Foundation
 
 enum PlanGenerationError: Error, LocalizedError {
+    case apiKeyNotConfigured
+    case networkUnreachable
     case networkFailure(Error)
+    case unauthorized
+    case rateLimited
     case nonSuccessResponse(Int, String)
     case invalidJSON
     case decodingFailure(Error)
 
     var errorDescription: String? {
         switch self {
-        case .networkFailure(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .nonSuccessResponse(let code, let body):
-            return "API error (\(code)): \(body)"
+        case .apiKeyNotConfigured:
+            return "API key not configured. Please contact support."
+        case .networkUnreachable:
+            return "No internet connection. Please check your network and try again."
+        case .networkFailure:
+            return "Could not reach the server. Please try again."
+        case .unauthorized:
+            return "Invalid API key. Please contact support."
+        case .rateLimited:
+            return "Too many requests. Please wait a moment and try again."
+        case .nonSuccessResponse(let code, _):
+            return "Something went wrong (error \(code)). Please try again."
         case .invalidJSON:
-            return "The response was not valid JSON."
-        case .decodingFailure(let error):
-            return "Failed to parse plan: \(error.localizedDescription)"
+            return "We got an unexpected response. Please try again."
+        case .decodingFailure:
+            return "We couldn't understand the response. Please try again."
         }
     }
 }
@@ -105,12 +117,17 @@ class PlanGenerationService {
     }
 
     func generate(idea: String, cast: CastChoice, context: String) async throws -> FilmmakingPlan {
+        let apiKey = Secrets.anthropicAPIKey
+        guard !apiKey.isEmpty, apiKey != "REPLACE_ME" else {
+            throw PlanGenerationError.apiKeyNotConfigured
+        }
+
         let userMessage = buildUserMessage(idea: idea, cast: cast, context: context)
 
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue(Secrets.anthropicAPIKey, forHTTPHeaderField: "x-api-key")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
 
@@ -129,6 +146,8 @@ class PlanGenerationService {
         let response: URLResponse
         do {
             (data, response) = try await URLSession.shared.data(for: request)
+        } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .networkConnectionLost {
+            throw PlanGenerationError.networkUnreachable
         } catch {
             throw PlanGenerationError.networkFailure(error)
         }
@@ -137,7 +156,14 @@ class PlanGenerationService {
             throw PlanGenerationError.invalidJSON
         }
 
-        guard httpResponse.statusCode == 200 else {
+        switch httpResponse.statusCode {
+        case 200:
+            break
+        case 401:
+            throw PlanGenerationError.unauthorized
+        case 429:
+            throw PlanGenerationError.rateLimited
+        default:
             let responseBody = String(data: data, encoding: .utf8) ?? ""
             throw PlanGenerationError.nonSuccessResponse(httpResponse.statusCode, responseBody)
         }

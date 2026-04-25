@@ -47,9 +47,13 @@ struct AssemblyLoadingView: View {
         }
         .alert("Assembly Failed", isPresented: Binding(
             get: { postState.assemblyError != nil },
-            set: { if !$0 { postState.assemblyError = nil; onDismiss() } }
+            set: { if !$0 { postState.assemblyError = nil } }
         )) {
-            Button("OK") { onDismiss() }
+            Button("Try Again") {
+                postState.assemblyError = nil
+                postState.retryAssembly()
+            }
+            Button("Go Back", role: .cancel) { onDismiss() }
         } message: {
             Text(postState.assemblyError ?? "")
         }
