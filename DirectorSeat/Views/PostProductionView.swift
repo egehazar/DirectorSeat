@@ -282,12 +282,16 @@ private struct ExportFlowView: View {
     let filmTitle: String
 
     var body: some View {
-        switch exportState.phase {
-        case .success(let url):
-            ExportSuccessView(url: url, filmTitle: filmTitle)
-        default:
-            ExportRenderingView(exportState: exportState)
+        let _ = print("[DirectorSeat] ExportFlowView body re-evaluated, phase: \(exportState.phase)")
+        Group {
+            switch exportState.phase {
+            case .success(let url):
+                ExportSuccessView(url: url, filmTitle: filmTitle)
+            default:
+                ExportRenderingView(exportState: exportState)
+            }
         }
+        .onChange(of: exportState.phase) { _, _ in }
     }
 }
 

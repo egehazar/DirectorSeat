@@ -38,13 +38,14 @@ class ExportState: ObservableObject {
         lastAssembledURL = assembledURL
         lastPostState = state
         phase = .rendering(progress: 0)
-        print("[DirectorSeat] Export started")
+        print("[DirectorSeat] Phase changed to: rendering")
 
-        Task {
-            let progressTask = Task {
+        Task { @MainActor in
+            let progressTask = Task { @MainActor in
                 var elapsed = 0.0
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .milliseconds(200))
+                    guard !Task.isCancelled else { break }
                     elapsed += 0.2
                     let fakeProgress = min(elapsed / 8.0, 0.95)
                     phase = .rendering(progress: fakeProgress)
@@ -59,11 +60,13 @@ class ExportState: ObservableObject {
                     plan: plan
                 )
                 progressTask.cancel()
-                print("[DirectorSeat] Export complete: \(url)")
+                try? await Task.sleep(for: .milliseconds(50))
+                print("[DirectorSeat] Phase changed to: success")
                 phase = .success(url)
             } catch {
                 progressTask.cancel()
-                print("[DirectorSeat] Export error: \(error.localizedDescription)")
+                try? await Task.sleep(for: .milliseconds(50))
+                print("[DirectorSeat] Phase changed to: failure")
                 phase = .failure(error.localizedDescription)
             }
         }

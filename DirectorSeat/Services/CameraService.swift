@@ -80,6 +80,9 @@ class CameraService: NSObject, AVCaptureFileOutputRecordingDelegate {
 
     func startRecording(to url: URL) {
         guard !movieOutput.isRecording else { return }
+        if FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.removeItem(at: url)
+        }
         movieOutput.startRecording(to: url, recordingDelegate: self)
     }
 

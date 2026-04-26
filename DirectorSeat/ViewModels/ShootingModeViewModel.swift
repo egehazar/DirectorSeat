@@ -124,8 +124,12 @@ class ShootingModeViewModel: ObservableObject {
 
     private func beginActualRecording() {
         let takeIndex = (capturedTakes[currentShotIndex]?.count ?? 0) + 1
-        let fileName = "shot_\(currentShotIndex + 1)_take\(takeIndex).mov"
+        let fileName = "shot_\(currentShotIndex + 1)_take_\(takeIndex)_\(UUID().uuidString).mov"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.removeItem(at: url)
+        }
 
         recordingState = .recording
         recordingDuration = 0
