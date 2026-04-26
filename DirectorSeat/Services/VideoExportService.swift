@@ -132,8 +132,8 @@ class VideoExportService {
 
                 if let wm = watermarkCIImage {
                     let positioned = wm.transformed(by: CGAffineTransform(
-                        translationX: request.sourceImage.extent.width - wm.extent.width - 20,
-                        y: 20
+                        translationX: request.sourceImage.extent.width - wm.extent.width - 24,
+                        y: 24
                     ))
                     final = positioned.composited(over: final)
                 }
@@ -246,14 +246,21 @@ class VideoExportService {
 
     private func renderWatermarkCIImage() -> CIImage? {
         let text = "Made with DirectorSeat"
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 240, height: 24))
+        let font = UIFont.systemFont(ofSize: 32, weight: .semibold)
+        let shadow = NSShadow()
+        shadow.shadowOffset = CGSize(width: 1, height: 1)
+        shadow.shadowBlurRadius = 2
+        shadow.shadowColor = UIColor.black.withAlphaComponent(0.6)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white.withAlphaComponent(0.7),
+            .shadow: shadow,
+        ]
+        let textSize = (text as NSString).size(withAttributes: attrs)
+        let canvasSize = CGSize(width: ceil(textSize.width) + 4, height: ceil(textSize.height) + 4)
+        let renderer = UIGraphicsImageRenderer(size: canvasSize)
         let image = renderer.image { _ in
-            let font = UIFont.systemFont(ofSize: 14, weight: .medium)
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: UIColor.white.withAlphaComponent(0.5),
-            ]
-            (text as NSString).draw(at: CGPoint(x: 0, y: 2), withAttributes: attrs)
+            (text as NSString).draw(at: CGPoint(x: 2, y: 2), withAttributes: attrs)
         }
         return CIImage(image: image)
     }
