@@ -3,6 +3,14 @@ import SwiftUI
 
 enum CastChoice: String {
     case solo, pair, group, decideLater
+
+    static func fromCastSize(_ size: Int) -> CastChoice {
+        switch size {
+        case 1: .solo
+        case 2: .pair
+        default: .group
+        }
+    }
 }
 
 class QuickContextViewModel: ObservableObject {

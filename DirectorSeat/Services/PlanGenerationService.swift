@@ -216,4 +216,110 @@ class PlanGenerationService {
         }
         return message
     }
+
+    // MARK: - Template-Based Generation
+
+    func generateFromTemplate(template: FilmTemplate, customization: String, cast: CastChoice) async throws -> FilmmakingPlan {
+        let apiKey = Secrets.anthropicAPIKey
+        guard !apiKey.isEmpty, apiKey != "REPLACE_ME" else {
+            throw PlanGenerationError.apiKeyNotConfigured
+        }
+
+        let templateSystemPrompt = buildTemplateSystemPrompt(template: template)
+        let userMessage = buildUserMessage(idea: customization, cast: cast, context: "")
+
+        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+
+        let body: [String: Any] = [
+            "model": "claude-opus-4-6",
+            "max_tokens": 4096,
+            "system": templateSystemPrompt,
+            "messages": [
+                ["role": "user", "content": userMessage],
+            ],
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .networkConnectionLost {
+            throw PlanGenerationError.networkUnreachable
+        } catch {
+            throw PlanGenerationError.networkFailure(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlanGenerationError.invalidJSON
+        }
+
+        switch httpResponse.statusCode {
+        case 200: break
+        case 401: throw PlanGenerationError.unauthorized
+        case 429: throw PlanGenerationError.rateLimited
+        default:
+            let responseBody = String(data: data, encoding: .utf8) ?? ""
+            throw PlanGenerationError.nonSuccessResponse(httpResponse.statusCode, responseBody)
+        }
+
+        let apiResponse: APIResponse
+        do {
+            apiResponse = try JSONDecoder().decode(APIResponse.self, from: data)
+        } catch {
+            throw PlanGenerationError.invalidJSON
+        }
+
+        guard let text = apiResponse.content.first(where: { $0.type == "text" })?.text else {
+            throw PlanGenerationError.invalidJSON
+        }
+
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("```json") { cleaned = String(cleaned.dropFirst(7)) }
+        else if cleaned.hasPrefix("```") { cleaned = String(cleaned.dropFirst(3)) }
+        if cleaned.hasSuffix("```") { cleaned = String(cleaned.dropLast(3)) }
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let jsonData = cleaned.data(using: .utf8) else {
+            throw PlanGenerationError.invalidJSON
+        }
+
+        do {
+            return try JSONDecoder().decode(FilmmakingPlan.self, from: jsonData)
+        } catch {
+            throw PlanGenerationError.decodingFailure(error)
+        }
+    }
+
+    private func buildTemplateSystemPrompt(template: FilmTemplate) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let templateJSON = (try? encoder.encode(template)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+        return """
+        You are DirectorSeat, an AI filmmaking planner for beginners. You are generating a plan from a story template. Respond with ONLY valid JSON, no markdown fences, no commentary.
+
+        TEMPLATE CONSTRAINT — This is critical:
+        You MUST preserve the exact story structure of the template provided:
+        - Do NOT change the number of scenes (\(template.scenes.count) scenes)
+        - Do NOT change the number of shots per scene (keep each scene's shot count identical)
+        - Do NOT change the shot types (wide, medium, close-up, etc.) — use exactly what the template specifies
+        - Do NOT change the beat structure — each scene and shot serves a specific narrative purpose
+        - Do NOT invent new scenes or shots
+        - DO fill in all [BRACKETED] placeholders with specific, vivid details from the user's customization
+        - DO write natural dialogue where shots call for it
+        - DO adapt camera placement and actor direction to the user's specific setting and characters
+
+        TEMPLATE:
+        \(templateJSON)
+
+        \(Self.systemPrompt)
+        """
+    }
 }

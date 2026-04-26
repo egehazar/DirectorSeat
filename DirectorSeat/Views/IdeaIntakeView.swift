@@ -4,6 +4,7 @@ struct IdeaIntakeView: View {
     @StateObject private var viewModel = IdeaIntakeViewModel()
     @Environment(\.dismiss) private var dismiss
     @State private var showQuickContext = false
+    @State private var showTemplates = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -69,6 +70,32 @@ struct IdeaIntakeView: View {
                     }
                     .padding(.top, Theme.Spacing.md)
 
+                    Button { showTemplates = true } label: {
+                        HStack(spacing: Theme.Spacing.md) {
+                            Image(systemName: "rectangle.stack.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Theme.Colors.accent)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Or start from a template")
+                                    .font(Theme.Typography.body.bold())
+                                    .foregroundStyle(Theme.Colors.textPrimary)
+                                Text("Proven story shapes you can fill in")
+                                    .font(Theme.Typography.caption)
+                                    .foregroundStyle(Theme.Colors.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(Theme.Colors.textSecondary.opacity(0.4))
+                        }
+                        .padding(Theme.Spacing.md)
+                        .background(Theme.Colors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, Theme.Spacing.lg)
+                    .padding(.top, Theme.Spacing.lg)
+
                     DSPrimaryButton(title: "Next") {
                         showQuickContext = true
                     }
@@ -84,6 +111,9 @@ struct IdeaIntakeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showQuickContext) {
             QuickContextView(ideaText: viewModel.ideaText)
+        }
+        .navigationDestination(isPresented: $showTemplates) {
+            TemplatesBrowserView()
         }
         .onChange(of: viewModel.ideaText) { _, newValue in
             if newValue.count > 200 {

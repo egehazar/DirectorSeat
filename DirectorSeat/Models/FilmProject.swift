@@ -23,6 +23,8 @@ class FilmProject {
     var titleCardsEnabled: Bool
     var filmTitle: String
     var conversationsJSON: Data?
+    var templateID: String?
+    var templateCustomization: String?
 
     init(
         title: String,

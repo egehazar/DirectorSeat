@@ -19,6 +19,7 @@ class PlanGenerationViewModel: ObservableObject {
     private var lastIdea = ""
     private var lastCast: CastChoice = .decideLater
     private var lastContext = ""
+    private var lastTemplate: FilmTemplate?
 
     private let loadingMessages = [
         "Writing your logline...",
@@ -32,11 +33,24 @@ class PlanGenerationViewModel: ObservableObject {
         lastIdea = idea
         lastCast = cast
         lastContext = context
+        lastTemplate = nil
         await performGeneration()
     }
 
+    func generateFromTemplate(template: FilmTemplate, customization: String) async {
+        lastTemplate = template
+        lastIdea = customization
+        lastCast = CastChoice.fromCastSize(template.castSize)
+        lastContext = ""
+        await performTemplateGeneration()
+    }
+
     func retry() async {
-        await performGeneration()
+        if lastTemplate != nil {
+            await performTemplateGeneration()
+        } else {
+            await performGeneration()
+        }
     }
 
     private func performGeneration() async {
@@ -47,6 +61,30 @@ class PlanGenerationViewModel: ObservableObject {
 
         do {
             let plan = try await service.generate(idea: lastIdea, cast: lastCast, context: lastContext)
+            state = .success(plan)
+        } catch {
+            let message = error.localizedDescription
+            state = .failure(message)
+            lastError = message
+            showError = true
+        }
+
+        stopLoadingMessageCycle()
+    }
+
+    private func performTemplateGeneration() async {
+        guard let template = lastTemplate else { return }
+        state = .loading
+        messageIndex = 0
+        currentLoadingMessage = loadingMessages[0]
+        startLoadingMessageCycle()
+
+        do {
+            let plan = try await service.generateFromTemplate(
+                template: template,
+                customization: lastIdea,
+                cast: lastCast
+            )
             state = .success(plan)
         } catch {
             let message = error.localizedDescription
