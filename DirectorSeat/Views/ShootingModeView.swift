@@ -15,8 +15,11 @@ struct ShootingModeView: View {
     @State private var reviewPlayer: AVPlayer?
     @Environment(\.scenePhase) private var scenePhase
 
-    init(plan: FilmmakingPlan) {
-        _viewModel = StateObject(wrappedValue: ShootingModeViewModel(plan: plan))
+    let project: FilmProject?
+
+    init(plan: FilmmakingPlan, project: FilmProject? = nil) {
+        self.project = project
+        _viewModel = StateObject(wrappedValue: ShootingModeViewModel(plan: plan, project: project))
     }
 
     var body: some View {
@@ -39,7 +42,8 @@ struct ShootingModeView: View {
             ShotReviewView(
                 plan: viewModel.plan,
                 capturedTakes: viewModel.capturedTakes,
-                selectedTakes: viewModel.selectedTakes
+                selectedTakes: viewModel.selectedTakes,
+                project: project
             )
         }
         .onChange(of: viewModel.allShotsComplete) { _, complete in

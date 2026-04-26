@@ -23,7 +23,8 @@ class VideoExportService {
         assembledURL: URL,
         state: PostProductionState,
         includeWatermark: Bool,
-        plan: FilmmakingPlan
+        plan: FilmmakingPlan,
+        outputDirectory: URL? = nil
     ) async throws -> URL {
         let mainAsset = AVURLAsset(url: assembledURL)
         let mainDuration = try await mainAsset.load(.duration)
@@ -142,8 +143,8 @@ class VideoExportService {
         }
 
         // Export
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("export_\(UUID().uuidString).mp4")
+        let exportDir = outputDirectory ?? FileManager.default.temporaryDirectory
+        let outputURL = exportDir.appendingPathComponent("export_\(UUID().uuidString).mp4")
 
         guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)
         else { throw VideoExportError.exportFailed("Could not create export session.") }

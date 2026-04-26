@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import Foundation
+import SwiftData
 
 enum RecordingState: Equatable {
     case idle
@@ -12,6 +13,7 @@ enum RecordingState: Equatable {
 class ShootingModeViewModel: ObservableObject {
     let plan: FilmmakingPlan
     let cameraService = CameraService()
+    var project: FilmProject?
 
     @Published var currentShotIndex = 0
     @Published var recordingState: RecordingState = .idle
@@ -39,8 +41,17 @@ class ShootingModeViewModel: ObservableObject {
     var currentShotNumber: Int { currentShotIndex + 1 }
     var totalShots: Int { allShots.count }
 
-    init(plan: FilmmakingPlan) {
+    init(plan: FilmmakingPlan, project: FilmProject? = nil) {
         self.plan = plan
+        self.project = project
+
+        // Restore state from project
+        if let project {
+            self.capturedTakes = project.capturedTakes
+            self.selectedTakes = project.selectedTakes
+            self.currentShotIndex = project.currentShotIndex
+        }
+
         cameraService.onRecordingFinished = { [weak self] result in
             switch result {
             case .success(let url):
@@ -95,6 +106,10 @@ class ShootingModeViewModel: ObservableObject {
         guard case .reviewing(let url) = recordingState else { return }
         selectedTakes[currentShotIndex] = url
         print("[DirectorSeat] Take selected for shot \(currentShotNumber)")
+
+        project?.selectedTakes = selectedTakes
+        saveProject()
+
         advanceToNextShot()
     }
 
@@ -110,9 +125,15 @@ class ShootingModeViewModel: ObservableObject {
         if currentShotIndex + 1 < allShots.count {
             currentShotIndex += 1
             recordingState = .idle
+
+            project?.currentShotIndex = currentShotIndex
+            saveProject()
         } else {
             print("[DirectorSeat] All shots captured, ready to assemble")
             allShotsComplete = true
+
+            project?.status = "reviewing"
+            saveProject()
         }
     }
 
@@ -125,7 +146,15 @@ class ShootingModeViewModel: ObservableObject {
     private func beginActualRecording() {
         let takeIndex = (capturedTakes[currentShotIndex]?.count ?? 0) + 1
         let fileName = "shot_\(currentShotIndex + 1)_take_\(takeIndex)_\(UUID().uuidString).mov"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        let url: URL
+        if let project {
+            let store = ProjectStore(modelContext: project.modelContext!)
+            store.ensureDirectories(for: project)
+            url = project.takesDirectory.appendingPathComponent(fileName)
+        } else {
+            url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        }
 
         if FileManager.default.fileExists(atPath: url.path) {
             try? FileManager.default.removeItem(at: url)
@@ -140,6 +169,11 @@ class ShootingModeViewModel: ObservableObject {
 
         print("[DirectorSeat] Recording started, file: \(url)")
         cameraService.startRecording(to: url)
+
+        if project?.status == "planning" || project?.status == "reviewing" {
+            project?.status = "shooting"
+            saveProject()
+        }
     }
 
     private func handleRecordingFinished(url: URL) {
@@ -147,5 +181,12 @@ class ShootingModeViewModel: ObservableObject {
         takes.append(url)
         capturedTakes[currentShotIndex] = takes
         recordingState = .reviewing(url)
+
+        project?.capturedTakes = capturedTakes
+        saveProject()
+    }
+
+    private func saveProject() {
+        try? project?.modelContext?.save()
     }
 }

@@ -1,10 +1,4 @@
-//
-//  DirectorSeatApp.swift
-//  DirectorSeat
-//
-//  Created by Ege Hazar on 24.04.2026.
-//
-
+import SwiftData
 import SwiftUI
 
 @main
@@ -13,5 +7,6 @@ struct DirectorSeatApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: FilmProject.self)
     }
 }

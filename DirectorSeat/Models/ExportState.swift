@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Photos
+import SwiftData
 
 enum ExportPhase: Equatable {
     case idle
@@ -21,6 +22,7 @@ class ExportState: ObservableObject {
     private var lastPlan: FilmmakingPlan?
     private var lastAssembledURL: URL?
     private var lastPostState: PostProductionState?
+    private var lastProject: FilmProject?
 
     func proceedWithWatermark() {
         includeWatermark = true
@@ -33,12 +35,22 @@ class ExportState: ObservableObject {
         userChoseExport = true
     }
 
-    func startRender(plan: FilmmakingPlan, assembledURL: URL, state: PostProductionState) {
+    func startRender(plan: FilmmakingPlan, assembledURL: URL, state: PostProductionState, project: FilmProject? = nil) {
         lastPlan = plan
         lastAssembledURL = assembledURL
         lastPostState = state
+        lastProject = project
         phase = .rendering(progress: 0)
         print("[DirectorSeat] Phase changed to: rendering")
+
+        // Determine output directory
+        let outputDir: URL
+        if let project {
+            outputDir = project.projectDirectory
+            try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+        } else {
+            outputDir = FileManager.default.temporaryDirectory
+        }
 
         Task { @MainActor in
             let progressTask = Task { @MainActor in
@@ -57,12 +69,24 @@ class ExportState: ObservableObject {
                     assembledURL: assembledURL,
                     state: state,
                     includeWatermark: includeWatermark,
-                    plan: plan
+                    plan: plan,
+                    outputDirectory: outputDir
                 )
                 progressTask.cancel()
                 try? await Task.sleep(for: .milliseconds(50))
                 print("[DirectorSeat] Phase changed to: success")
                 phase = .success(url)
+
+                // Save to project
+                if let project {
+                    let docsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path
+                    let relativePath = url.path.hasPrefix(docsPath)
+                        ? String(url.path.dropFirst(docsPath.count + 1))
+                        : url.path
+                    project.exportedVideoPath = relativePath
+                    project.status = "exported"
+                    try? project.modelContext?.save()
+                }
             } catch {
                 progressTask.cancel()
                 try? await Task.sleep(for: .milliseconds(50))
@@ -74,7 +98,7 @@ class ExportState: ObservableObject {
 
     func retry() {
         guard let plan = lastPlan, let url = lastAssembledURL, let state = lastPostState else { return }
-        startRender(plan: plan, assembledURL: url, state: state)
+        startRender(plan: plan, assembledURL: url, state: state, project: lastProject)
     }
 
     func saveToCameraRoll(url: URL) async throws {

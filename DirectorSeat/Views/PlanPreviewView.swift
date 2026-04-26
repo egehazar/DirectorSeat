@@ -1,9 +1,17 @@
+import SwiftData
 import SwiftUI
 
 struct PlanPreviewView: View {
-    let plan: FilmmakingPlan
+    @State private var plan: FilmmakingPlan
+    var project: FilmProject?
     @Environment(\.dismiss) private var dismiss
     @State private var showChecklist = false
+    @State private var activeShotChat: ShotChatContext?
+
+    init(plan: FilmmakingPlan, project: FilmProject? = nil) {
+        _plan = State(initialValue: plan)
+        self.project = project
+    }
 
     private var totalShots: Int {
         plan.scenes.reduce(0) { $0 + $1.shots.count }
@@ -62,6 +70,7 @@ struct PlanPreviewView: View {
 
                                 VStack(spacing: Theme.Spacing.sm) {
                                     ForEach(scene.shots) { shot in
+                                        let globalNum = globalShotNumber(for: shot, in: scene)
                                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                                             Text("SHOT \(shot.shotNumber) \u{00B7} \(shot.shotType.uppercased())")
                                                 .font(Theme.Typography.caption)
@@ -82,6 +91,9 @@ struct PlanPreviewView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .background(Theme.Colors.surface)
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .onTapGesture {
+                                            activeShotChat = ShotChatContext(shot: shot, globalShotNumber: globalNum)
+                                        }
                                     }
                                 }
                                 .padding(.top, Theme.Spacing.md)
@@ -106,7 +118,7 @@ struct PlanPreviewView: View {
                     showChecklist = true
                 }
 
-                Text("Next: setup checklist")
+                Text("Tap any shot to refine it \u{00B7} Next: setup checklist")
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.textSecondary.opacity(0.6))
             }
@@ -116,9 +128,49 @@ struct PlanPreviewView: View {
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showChecklist) {
-            SetupChecklistView(plan: plan)
+            SetupChecklistView(plan: plan, project: project)
+        }
+        .sheet(item: $activeShotChat, onDismiss: {
+            savePlanToProject()
+        }) { context in
+            ShotChatView(
+                plan: $plan,
+                shot: context.shot,
+                globalShotNumber: context.globalShotNumber,
+                project: project,
+                existingMessages: project?.conversations[context.globalShotNumber] ?? []
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
+
+    // MARK: - Helpers
+
+    private func globalShotNumber(for shot: Shot, in scene: FilmScene) -> Int {
+        var num = 0
+        for s in plan.scenes {
+            for sh in s.shots {
+                num += 1
+                if s.sceneNumber == scene.sceneNumber && sh.shotNumber == shot.shotNumber {
+                    return num
+                }
+            }
+        }
+        return 0
+    }
+
+    private func savePlanToProject() {
+        guard let project else { return }
+        project.plan = plan
+        try? project.modelContext?.save()
+    }
+}
+
+private struct ShotChatContext: Identifiable {
+    let id = UUID()
+    let shot: Shot
+    let globalShotNumber: Int
 }
 
 #Preview {

@@ -5,6 +5,7 @@ import UIKit
 struct ExportSuccessView: View {
     let url: URL
     let filmTitle: String
+    var project: FilmProject?
     @Environment(\.dismiss) private var dismiss
     @State private var player: AVPlayer?
     @State private var showShareSheet = false

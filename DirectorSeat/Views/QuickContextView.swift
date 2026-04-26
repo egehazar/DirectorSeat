@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 private struct CastOption: Identifiable {
@@ -19,7 +20,9 @@ struct QuickContextView: View {
     @StateObject private var viewModel: QuickContextViewModel
     @StateObject private var planViewModel = PlanGenerationViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var showPlanGeneration = false
+    @State private var project: FilmProject?
 
     init(ideaText: String, initialCard: Int = 1) {
         self.ideaText = ideaText
@@ -82,7 +85,7 @@ struct QuickContextView: View {
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showPlanGeneration) {
-            PlanGenerationFlowView(viewModel: planViewModel)
+            PlanGenerationFlowView(viewModel: planViewModel, project: project)
         }
     }
 
@@ -184,11 +187,19 @@ struct QuickContextView: View {
     }
 
     private func startGeneration() {
+        let store = ProjectStore(modelContext: modelContext)
+        let cast = viewModel.castChoice ?? .decideLater
+        let newProject = store.createProject(
+            ideaText: ideaText,
+            castChoice: cast,
+            contextText: viewModel.contextText
+        )
+        project = newProject
         showPlanGeneration = true
         Task {
             await planViewModel.generate(
                 idea: ideaText,
-                cast: viewModel.castChoice ?? .decideLater,
+                cast: cast,
                 context: viewModel.contextText
             )
         }
@@ -197,14 +208,23 @@ struct QuickContextView: View {
 
 private struct PlanGenerationFlowView: View {
     @ObservedObject var viewModel: PlanGenerationViewModel
+    var project: FilmProject?
 
     var body: some View {
         switch viewModel.state {
         case .success(let plan):
-            PlanPreviewView(plan: plan)
+            PlanPreviewView(plan: plan, project: project)
+                .onAppear { savePlanToProject(plan) }
         default:
             PlanGenerationLoadingView(viewModel: viewModel)
         }
+    }
+
+    private func savePlanToProject(_ plan: FilmmakingPlan) {
+        guard let project, project.planJSON == nil else { return }
+        project.plan = plan
+        project.status = "planning"
+        try? project.modelContext?.save()
     }
 }
 

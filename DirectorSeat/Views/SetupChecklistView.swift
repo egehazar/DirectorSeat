@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SetupChecklistView: View {
     let plan: FilmmakingPlan
+    var project: FilmProject?
     @Environment(\.dismiss) private var dismiss
     @State private var checkedItems: Set<String> = []
     @State private var showShootingMode = false
@@ -169,7 +170,7 @@ struct SetupChecklistView: View {
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showShootingMode) {
-            ShootingModeView(plan: plan)
+            ShootingModeView(plan: plan, project: project)
         }
     }
 

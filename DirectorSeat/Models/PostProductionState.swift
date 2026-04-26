@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftData
 
 @MainActor
 class PostProductionState: ObservableObject {
@@ -13,6 +14,7 @@ class PostProductionState: ObservableObject {
     @Published var isAssembling = false
     @Published var assemblyError: String?
 
+    var project: FilmProject?
     private let service = VideoAssemblyService()
     private var lastTakes: [URL] = []
 
@@ -26,10 +28,26 @@ class PostProductionState: ObservableObject {
         assemblyError = nil
         print("[DirectorSeat] Assembly started with \(takes.count) clips")
         do {
-            let outputURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("assembled_\(UUID().uuidString).mov")
+            let outputDir: URL
+            if let project {
+                outputDir = project.projectDirectory
+                try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+            } else {
+                outputDir = FileManager.default.temporaryDirectory
+            }
+            let outputURL = outputDir.appendingPathComponent("assembled_\(UUID().uuidString).mov")
             assembledVideoURL = try await service.assembleClips(urls: takes, outputURL: outputURL)
             print("[DirectorSeat] Assembly complete: \(outputURL)")
+
+            if let project {
+                let docsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path
+                let relativePath = outputURL.path.hasPrefix(docsPath)
+                    ? String(outputURL.path.dropFirst(docsPath.count + 1))
+                    : outputURL.path
+                project.assembledVideoPath = relativePath
+                project.status = "post"
+                try? project.modelContext?.save()
+            }
         } catch {
             print("[DirectorSeat] Assembly error: \(error.localizedDescription)")
             assemblyError = error.localizedDescription

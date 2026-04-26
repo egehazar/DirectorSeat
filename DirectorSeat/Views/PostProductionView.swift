@@ -1,9 +1,11 @@
 import AVKit
+import SwiftData
 import SwiftUI
 
 struct PostProductionView: View {
     let plan: FilmmakingPlan
     @ObservedObject var postState: PostProductionState
+    var project: FilmProject?
     @Environment(\.dismiss) private var dismiss
     @StateObject private var exportState = ExportState()
     @State private var player: AVPlayer?
@@ -86,19 +88,20 @@ struct PostProductionView: View {
         .sheet(isPresented: $showPaywall, onDismiss: {
             if exportState.userChoseExport {
                 exportState.userChoseExport = false
-                exportState.startRender(plan: plan, assembledURL: videoURL, state: postState)
+                exportState.startRender(plan: plan, assembledURL: videoURL, state: postState, project: project)
                 showExportFlow = true
             }
         }) {
             PaywallView(exportState: exportState)
         }
         .fullScreenCover(isPresented: $showExportFlow) {
-            ExportFlowView(exportState: exportState, filmTitle: postState.filmTitle)
+            ExportFlowView(exportState: exportState, filmTitle: postState.filmTitle, project: project)
         }
         .onAppear {
             if postState.filmTitle.isEmpty {
                 postState.filmTitle = String(plan.logline.prefix(60))
             }
+            postState.project = project
             let newPlayer = AVPlayer(url: videoURL)
             player = newPlayer
             newPlayer.play()
@@ -106,6 +109,13 @@ struct PostProductionView: View {
         .onDisappear {
             player?.pause()
             player = nil
+            // Save post-production state to project
+            if let project {
+                project.filmTitle = postState.filmTitle
+                project.directorName = postState.directorName
+                project.titleCardsEnabled = postState.titleCardsEnabled
+                try? project.modelContext?.save()
+            }
         }
     }
 
@@ -280,13 +290,14 @@ struct PostProductionView: View {
 private struct ExportFlowView: View {
     @ObservedObject var exportState: ExportState
     let filmTitle: String
+    var project: FilmProject?
 
     var body: some View {
         let _ = print("[DirectorSeat] ExportFlowView body re-evaluated, phase: \(exportState.phase)")
         Group {
             switch exportState.phase {
             case .success(let url):
-                ExportSuccessView(url: url, filmTitle: filmTitle)
+                ExportSuccessView(url: url, filmTitle: filmTitle, project: project)
             default:
                 ExportRenderingView(exportState: exportState)
             }

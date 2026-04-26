@@ -1,4 +1,5 @@
 import AVFoundation
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -6,6 +7,7 @@ struct ShotReviewView: View {
     let plan: FilmmakingPlan
     @State var capturedTakes: [Int: [URL]]
     @State var selectedTakes: [Int: URL]
+    var project: FilmProject?
     @Environment(\.dismiss) private var dismiss
     @StateObject private var postState = PostProductionState()
     @State private var selectedShotIndex: Int?
@@ -97,7 +99,7 @@ struct ShotReviewView: View {
             )
         }
         .navigationDestination(isPresented: $showPostFlow) {
-            PostProductionView(plan: plan, postState: postState)
+            PostProductionView(plan: plan, postState: postState, project: project)
         }
         .task {
             await loadThumbnails()
@@ -177,9 +179,25 @@ struct ShotReviewView: View {
 
     private func startAssembly() {
         let orderedTakes = (0..<allShots.count).compactMap { selectedTakes[$0] }
-        postState.filmTitle = String(plan.logline.prefix(60))
+
+        // Save selections to project
+        if let project {
+            project.selectedTakes = selectedTakes
+            try? project.modelContext?.save()
+        }
+
+        postState.project = project
+        postState.filmTitle = project?.filmTitle ?? String(plan.logline.prefix(60))
+        postState.directorName = project?.directorName ?? postState.directorName
         showPostFlow = true
-        Task { await postState.assemble(takes: orderedTakes) }
+        Task {
+            await postState.assemble(takes: orderedTakes)
+            // Generate thumbnail from first selected take
+            if let project {
+                let store = ProjectStore(modelContext: project.modelContext!)
+                await store.generateThumbnail(for: project)
+            }
+        }
     }
 
     private func loadThumbnails() async {

@@ -76,6 +76,89 @@ struct CastMember: Codable, Identifiable {
     }
 }
 
+// MARK: - Plan Mutation for Shot Refinement
+
+extension FilmmakingPlan {
+    /// Maps a 1-indexed global shot number to (sceneIndex, shotIndex).
+    func sceneAndShotIndex(forGlobal globalNumber: Int) -> (sceneIndex: Int, shotIndex: Int)? {
+        var count = 0
+        for (si, scene) in scenes.enumerated() {
+            for shi in 0..<scene.shots.count {
+                count += 1
+                if count == globalNumber { return (si, shi) }
+            }
+        }
+        return nil
+    }
+
+    /// Returns a new plan with the revision applied (target + dependents).
+    func applyingRevision(_ revision: ShotRevision) -> FilmmakingPlan? {
+        var updatedScenes = scenes
+
+        // Apply target shot
+        guard let (si, shi) = sceneAndShotIndex(forGlobal: revision.targetShotNumber) else { return nil }
+        let originalNum = updatedScenes[si].shots[shi].shotNumber
+        updatedScenes[si] = updatedScenes[si].replacingShot(
+            at: shi,
+            with: revision.updatedShot.withShotNumber(originalNum)
+        )
+
+        // Apply dependent changes
+        for depShot in revision.dependentShotChanges {
+            guard let (dsi, dshi) = sceneAndShotIndex(forGlobal: depShot.shotNumber) else { continue }
+            let origNum = updatedScenes[dsi].shots[dshi].shotNumber
+            updatedScenes[dsi] = updatedScenes[dsi].replacingShot(
+                at: dshi,
+                with: depShot.withShotNumber(origNum)
+            )
+        }
+
+        return FilmmakingPlan(
+            logline: logline,
+            estimatedDurationMinutes: estimatedDurationMinutes,
+            estimatedTotalShootMinutes: estimatedTotalShootMinutes,
+            scenes: updatedScenes,
+            cast: cast,
+            requiredStoryProps: requiredStoryProps,
+            optionalSetupHelpers: optionalSetupHelpers,
+            locationRequirements: locationRequirements,
+            musicMood: musicMood
+        )
+    }
+}
+
+extension Shot {
+    func withShotNumber(_ number: Int) -> Shot {
+        Shot(
+            shotNumber: number,
+            shotType: shotType,
+            directionText: directionText,
+            cameraPlacement: cameraPlacement,
+            actorDirection: actorDirection,
+            dialogue: dialogue,
+            estimatedDurationSeconds: estimatedDurationSeconds,
+            soloShootable: soloShootable,
+            audioRisk: audioRisk
+        )
+    }
+}
+
+extension FilmScene {
+    func replacingShot(at index: Int, with shot: Shot) -> FilmScene {
+        var updatedShots = shots
+        updatedShots[index] = shot
+        return FilmScene(
+            sceneNumber: sceneNumber,
+            description: description,
+            locationDescription: locationDescription,
+            castCount: castCount,
+            shots: updatedShots
+        )
+    }
+}
+
+// MARK: - Sample Data
+
 extension FilmmakingPlan {
     static let sample = FilmmakingPlan(
         logline: "A person investigates mysterious footsteps in their apartment at night.",

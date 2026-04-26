@@ -1,7 +1,7 @@
 import Combine
 import SwiftUI
 
-enum CastChoice {
+enum CastChoice: String {
     case solo, pair, group, decideLater
 }
 
