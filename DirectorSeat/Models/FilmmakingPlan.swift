@@ -1,5 +1,42 @@
 import Foundation
 
+// MARK: - Editorial Enums
+
+enum TransitionType: String, Codable {
+    case cut
+    case dissolve
+    case fadeToBlack = "fade_to_black"
+    case fadeFromBlack = "fade_from_black"
+    case matchCut = "match_cut"
+}
+
+enum PacingRole: String, Codable {
+    case establishing
+    case building
+    case beat
+    case payoff
+    case transition
+    case closure
+}
+
+enum AudioTreatment: String, Codable {
+    case dialoguePriority = "dialogue_priority"
+    case musicPriority = "music_priority"
+    case ambientOnly = "ambient_only"
+    case silent
+    case crescendo
+}
+
+enum ScenePacingProfile: String, Codable {
+    case slowBurn = "slow_burn"
+    case risingTension = "rising_tension"
+    case quickBeats = "quick_beats"
+    case steady
+    case climactic
+}
+
+// MARK: - Plan Model
+
 struct FilmmakingPlan: Codable {
     let logline: String
     let estimatedDurationMinutes: Int
@@ -31,12 +68,34 @@ struct FilmScene: Codable, Identifiable {
     let castCount: Int
     let shots: [Shot]
 
+    // Scene-level editorial metadata
+    let pacingProfile: ScenePacingProfile?
+    let musicCueIn: Bool?
+    let musicCueOut: Bool?
+
     enum CodingKeys: String, CodingKey {
         case sceneNumber = "scene_number"
         case description
         case locationDescription = "location_description"
         case castCount = "cast_count"
         case shots
+        case pacingProfile = "pacing_profile"
+        case musicCueIn = "music_cue_in"
+        case musicCueOut = "music_cue_out"
+    }
+
+    init(sceneNumber: Int, description: String, locationDescription: String,
+         castCount: Int, shots: [Shot],
+         pacingProfile: ScenePacingProfile? = nil,
+         musicCueIn: Bool? = nil, musicCueOut: Bool? = nil) {
+        self.sceneNumber = sceneNumber
+        self.description = description
+        self.locationDescription = locationDescription
+        self.castCount = castCount
+        self.shots = shots
+        self.pacingProfile = pacingProfile
+        self.musicCueIn = musicCueIn
+        self.musicCueOut = musicCueOut
     }
 }
 
@@ -52,6 +111,14 @@ struct Shot: Codable, Identifiable {
     let soloShootable: Bool
     let audioRisk: String
 
+    // Editorial metadata — populated by LLM, consumed by assembly engine
+    let recommendedHoldSeconds: Double?
+    let transitionInType: TransitionType?
+    let transitionOutType: TransitionType?
+    let pacingRole: PacingRole?
+    let audioTreatment: AudioTreatment?
+    let editingNote: String?
+
     enum CodingKeys: String, CodingKey {
         case shotNumber = "shot_number"
         case shotType = "shot_type"
@@ -62,6 +129,35 @@ struct Shot: Codable, Identifiable {
         case estimatedDurationSeconds = "estimated_duration_seconds"
         case soloShootable = "solo_shootable"
         case audioRisk = "audio_risk"
+        case recommendedHoldSeconds = "recommended_hold_seconds"
+        case transitionInType = "transition_in_type"
+        case transitionOutType = "transition_out_type"
+        case pacingRole = "pacing_role"
+        case audioTreatment = "audio_treatment"
+        case editingNote = "editing_note"
+    }
+
+    init(shotNumber: Int, shotType: String, directionText: String,
+         cameraPlacement: String, actorDirection: String, dialogue: String?,
+         estimatedDurationSeconds: Int, soloShootable: Bool, audioRisk: String,
+         recommendedHoldSeconds: Double? = nil, transitionInType: TransitionType? = nil,
+         transitionOutType: TransitionType? = nil, pacingRole: PacingRole? = nil,
+         audioTreatment: AudioTreatment? = nil, editingNote: String? = nil) {
+        self.shotNumber = shotNumber
+        self.shotType = shotType
+        self.directionText = directionText
+        self.cameraPlacement = cameraPlacement
+        self.actorDirection = actorDirection
+        self.dialogue = dialogue
+        self.estimatedDurationSeconds = estimatedDurationSeconds
+        self.soloShootable = soloShootable
+        self.audioRisk = audioRisk
+        self.recommendedHoldSeconds = recommendedHoldSeconds
+        self.transitionInType = transitionInType
+        self.transitionOutType = transitionOutType
+        self.pacingRole = pacingRole
+        self.audioTreatment = audioTreatment
+        self.editingNote = editingNote
     }
 }
 
@@ -138,7 +234,13 @@ extension Shot {
             dialogue: dialogue,
             estimatedDurationSeconds: estimatedDurationSeconds,
             soloShootable: soloShootable,
-            audioRisk: audioRisk
+            audioRisk: audioRisk,
+            recommendedHoldSeconds: recommendedHoldSeconds,
+            transitionInType: transitionInType,
+            transitionOutType: transitionOutType,
+            pacingRole: pacingRole,
+            audioTreatment: audioTreatment,
+            editingNote: editingNote
         )
     }
 }
@@ -152,7 +254,10 @@ extension FilmScene {
             description: description,
             locationDescription: locationDescription,
             castCount: castCount,
-            shots: updatedShots
+            shots: updatedShots,
+            pacingProfile: pacingProfile,
+            musicCueIn: musicCueIn,
+            musicCueOut: musicCueOut
         )
     }
 }

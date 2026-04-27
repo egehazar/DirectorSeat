@@ -177,6 +177,9 @@ class PlanRefinementService {
 
         If dependent changes are needed, you MUST include ALL affected shots in dependent_shot_changes with their complete updated content. If only the target shot changes, dependent_shot_changes MUST be an empty array [].
 
+        EDITORIAL METADATA IN REVISIONS:
+        When proposing revisions, you must include all editorial metadata fields (recommended_hold_seconds, transition_in_type, transition_out_type, pacing_role, audio_treatment, editing_note). If the user's change affects pacing — e.g., they want a shot to feel more tense — adjust these fields accordingly. If the original shot has editorial metadata, preserve it unless the change warrants an update. Every revised shot must have complete editorial metadata.
+
         OUTPUT FORMAT — respond with ONLY valid JSON, no markdown fences, no text outside the JSON:
         {
           "message": "your conversational response, max 80 words, warm and direct like a friendly director",
@@ -191,7 +194,13 @@ class PlanRefinementService {
               "dialogue": "line of dialogue" or null,
               "estimated_duration_seconds": <int>,
               "solo_shootable": <bool>,
-              "audio_risk": "low | medium | high"
+              "audio_risk": "low | medium | high",
+              "recommended_hold_seconds": <number>,
+              "transition_in_type": "cut | dissolve | fade_to_black | fade_from_black | match_cut",
+              "transition_out_type": "cut | dissolve | fade_to_black | fade_from_black | match_cut",
+              "pacing_role": "establishing | building | beat | payoff | transition | closure",
+              "audio_treatment": "dialogue_priority | music_priority | ambient_only | silent | crescendo",
+              "editing_note": "One sentence explaining the editing intent for this shot"
             },
             "dependent_shot_changes": [
               {
@@ -203,7 +212,13 @@ class PlanRefinementService {
                 "dialogue": "..." or null,
                 "estimated_duration_seconds": <int>,
                 "solo_shootable": <bool>,
-                "audio_risk": "low | medium | high"
+                "audio_risk": "low | medium | high",
+                "recommended_hold_seconds": <number>,
+                "transition_in_type": "...",
+                "transition_out_type": "...",
+                "pacing_role": "...",
+                "audio_treatment": "...",
+                "editing_note": "..."
               }
             ],
             "summary": "1-sentence human-readable description of the change, shown to user"

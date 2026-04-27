@@ -50,6 +50,9 @@ class PlanGenerationService {
               "description": "What happens in this scene",
               "location_description": "Where this scene takes place",
               "cast_count": <number>,
+              "pacing_profile": "slow_burn | rising_tension | quick_beats | steady | climactic",
+              "music_cue_in": <boolean>,
+              "music_cue_out": <boolean>,
               "shots": [
                 {
                   "shot_number": <number>,
@@ -60,7 +63,13 @@ class PlanGenerationService {
                   "dialogue": "Line of dialogue or null",
                   "estimated_duration_seconds": <number>,
                   "solo_shootable": <boolean>,
-                  "audio_risk": "low | medium | high"
+                  "audio_risk": "low | medium | high",
+                  "recommended_hold_seconds": <number>,
+                  "transition_in_type": "cut | dissolve | fade_to_black | fade_from_black | match_cut",
+                  "transition_out_type": "cut | dissolve | fade_to_black | fade_from_black | match_cut",
+                  "pacing_role": "establishing | building | beat | payoff | transition | closure",
+                  "audio_treatment": "dialogue_priority | music_priority | ambient_only | silent | crescendo",
+                  "editing_note": "One sentence explaining the editing intent for this shot"
                 }
               ]
             }
@@ -105,6 +114,63 @@ class PlanGenerationService {
 
         FRAMING WITHOUT A CAMERA OPERATOR:
         - When a shot does not have a designated camera operator (i.e. solo_shootable is true or no third person is available), bias toward framings that work from a static phone position. Prefer two-shots (both actors in one frame) over over-shoulder reverses. Over-shoulder should only be used when the user has confirmed a camera operator is available.
+
+        ===========================
+        EDITORIAL DIRECTION
+        ===========================
+
+        You are not just planning what gets shot — you are pre-directing the edit. Every shot must include editorial metadata that tells the assembly engine how to cut the film. This is what separates a montage from a film.
+
+        For each shot, decide:
+
+        1. RECOMMENDED HOLD DURATION (recommended_hold_seconds)
+        The hold duration is how long the shot appears in the final cut. It may be shorter than the recorded duration — beginners over-shoot, and tight editing is what makes amateur footage feel professional.
+
+        Guidelines:
+        - Establishing shots: 2.5–4 seconds — long enough to read the space, short enough not to drag
+        - Dialogue shots: match the dialogue length plus 0.3-0.5s of breathing room before and after
+        - Reaction shots: 1.5–3 seconds depending on emotional weight
+        - Action beats: tight as the action allows, sometimes 1–2 seconds
+        - Closure shots: 3–5 seconds — give the moment air
+        - Match action shots: trimmed to the action moment, can be under 1 second if it's a cutaway
+
+        2. TRANSITIONS (transition_in_type, transition_out_type)
+        Default is "cut." Use other transitions sparingly — they have meaning.
+
+        - cut: default, fast, neutral. Use for 80%+ of shots.
+        - dissolve: implies passage of time or emotional connection between shots. Use 1–2 times max per film.
+        - fade_to_black / fade_from_black: scene boundaries, opening, closing only. Never mid-scene.
+        - match_cut: when two shots share visual continuity (e.g., character looking → what they see). Flag this for the editor's awareness; the engine still uses a hard cut but with timing precision.
+
+        3. PACING ROLE (pacing_role)
+        Identifies the narrative function. The engine uses this to ensure pacing variety — too many "establishing" shots in a row is boring, too many "beat" shots dilutes their impact.
+
+        4. AUDIO TREATMENT (audio_treatment)
+        Music is not a constant background. It enters and exits with intent.
+
+        - dialogue_priority: shot has spoken lines, music ducks to ~30% volume so dialogue lands
+        - music_priority: shot has no critical dialogue, music carries emotion, source audio at ~20%
+        - ambient_only: no music, source audio at 100%. Used for tension, naturalism, or contrast
+        - silent: both dropped. Reserved for shock moments, dramatic reveals. Use 0–1 times per film.
+        - crescendo: music swells through this shot. Used for climactic beats. Use 1 time per film, at the dramatic peak.
+
+        5. EDITING NOTE (editing_note)
+        One sentence describing the editing intent. This is for the user's awareness, not the engine. Example: "Hold long enough for the audience to read the note before cutting to reaction."
+
+        SCENE-LEVEL PACING (pacing_profile)
+        Each scene should have a pacing intent that informs its shot selection:
+
+        - slow_burn: scene's job is dread or contemplation; longer holds, fewer cuts
+        - rising_tension: pace accelerates within the scene; later shots have shorter holds than earlier ones
+        - quick_beats: comedic timing; tight holds, no shot longer than 3 seconds
+        - steady: conversation or exposition; even rhythm
+        - climactic: the scene where everything pays off; mix of long holds (for impact) and tight cuts (for energy)
+
+        MUSIC CUES (music_cue_in, music_cue_out)
+        Mark where music enters and exits the film. Music should not play wall-to-wall — silence has weight. Typical pattern: music_cue_in on Scene 2 or 3, music_cue_out on the final shot. Some films benefit from music throughout; some benefit from silence and a single emotional swell.
+
+        CRITICAL CONSTRAINT
+        Your editorial decisions must be defensible. Every editing_note should explain WHY this hold duration, this transition, this audio treatment serves the story. Editing without intent is what makes amateur films feel amateur.
         """
 
     private struct APIResponse: Decodable {
