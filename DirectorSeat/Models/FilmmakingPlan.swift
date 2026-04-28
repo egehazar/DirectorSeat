@@ -309,6 +309,45 @@ extension Shot {
     var displayLine: String {
         dialogueDirection?.userWrittenLine ?? dialogueDirection?.draftLine ?? ""
     }
+
+    func withDialogueDirection(_ direction: DialogueDirection?) -> Shot {
+        Shot(
+            shotNumber: shotNumber,
+            shotType: shotType,
+            directionText: directionText,
+            cameraPlacement: cameraPlacement,
+            actorDirection: actorDirection,
+            dialogueDirection: direction,
+            estimatedDurationSeconds: estimatedDurationSeconds,
+            soloShootable: soloShootable,
+            audioRisk: audioRisk,
+            recommendedHoldSeconds: recommendedHoldSeconds,
+            transitionInType: transitionInType,
+            transitionOutType: transitionOutType,
+            pacingRole: pacingRole,
+            audioTreatment: audioTreatment,
+            editingNote: editingNote
+        )
+    }
+}
+
+extension FilmmakingPlan {
+    func replacingShot(atGlobal globalNumber: Int, with shot: Shot) -> FilmmakingPlan? {
+        guard let (si, shi) = sceneAndShotIndex(forGlobal: globalNumber) else { return nil }
+        var updatedScenes = scenes
+        updatedScenes[si] = updatedScenes[si].replacingShot(at: shi, with: shot)
+        return FilmmakingPlan(
+            logline: logline,
+            estimatedDurationMinutes: estimatedDurationMinutes,
+            estimatedTotalShootMinutes: estimatedTotalShootMinutes,
+            scenes: updatedScenes,
+            cast: cast,
+            requiredStoryProps: requiredStoryProps,
+            optionalSetupHelpers: optionalSetupHelpers,
+            locationRequirements: locationRequirements,
+            musicMood: musicMood
+        )
+    }
 }
 
 extension FilmScene {

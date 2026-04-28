@@ -203,10 +203,17 @@ struct ShootingModeView: View {
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.textSecondary)
 
-                if !shot.displayLine.isEmpty {
+                if shot.dialogueDirection?.hasSpokenLine == true, !shot.displayLine.isEmpty {
                     Text("\u{201C}\(shot.displayLine)\u{201D}")
                         .font(Theme.Typography.body.italic())
                         .foregroundStyle(Theme.Colors.textSecondary)
+
+                    if let voiceCue = shot.dialogueDirection?.voiceCue, !voiceCue.isEmpty {
+                        Text("\u{25B8} \(voiceCue)")
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary.opacity(0.7))
+                            .lineLimit(2)
+                    }
                 }
             }
             .padding(Theme.Spacing.lg)
@@ -243,11 +250,20 @@ struct ShootingModeView: View {
                         .foregroundStyle(.white.opacity(0.8))
                         .padding(.top, Theme.Spacing.sm)
 
-                    if !shot.displayLine.isEmpty {
+                    if shot.dialogueDirection?.hasSpokenLine == true, !shot.displayLine.isEmpty {
                         Text("\u{201C}\(shot.displayLine)\u{201D}")
-                            .font(Theme.Typography.body.italic())
+                            .font(Theme.Typography.title.italic())
                             .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
                             .padding(.top, Theme.Spacing.sm)
+
+                        if let voiceCue = shot.dialogueDirection?.voiceCue, !voiceCue.isEmpty {
+                            Text("\u{25B8} \(voiceCue)")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(.white.opacity(0.7))
+                                .lineLimit(2)
+                                .padding(.top, Theme.Spacing.xs)
+                        }
                     }
                 }
                 .padding(Theme.Spacing.md)

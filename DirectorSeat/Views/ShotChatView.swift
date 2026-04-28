@@ -8,6 +8,14 @@ struct ShotChatView: View {
     var project: FilmProject?
     @StateObject private var viewModel: ShotChatViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showDialogueChips: Bool
+
+    private static let dialogueChipPrompts = [
+        "Make this funnier",
+        "Three alternatives",
+        "More subtle",
+        "Different tone",
+    ]
 
     init(plan: Binding<FilmmakingPlan>, shot: Shot, globalShotNumber: Int, project: FilmProject?, existingMessages: [ConversationMessage]) {
         _plan = plan
@@ -20,12 +28,35 @@ struct ShotChatView: View {
             globalShotNumber: globalShotNumber,
             existingMessages: existingMessages
         ))
+        _showDialogueChips = State(initialValue: !existingMessages.contains { $0.role == .user })
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().overlay(Theme.Colors.surface)
+
+            if showDialogueChips, shot.dialogueDirection?.hasSpokenLine == true {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        ForEach(Self.dialogueChipPrompts, id: \.self) { prompt in
+                            Button {
+                                viewModel.inputText = prompt
+                            } label: {
+                                Text(prompt)
+                                    .font(Theme.Typography.caption)
+                                    .foregroundStyle(Theme.Colors.accent)
+                                    .padding(.horizontal, Theme.Spacing.md)
+                                    .padding(.vertical, Theme.Spacing.sm)
+                                    .background(Theme.Colors.surface)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Theme.Spacing.lg)
+                }
+                .padding(.vertical, Theme.Spacing.sm)
+            }
 
             ScrollViewReader { proxy in
                 ScrollView {
@@ -44,6 +75,9 @@ struct ShotChatView: View {
                     .padding(.vertical, Theme.Spacing.md)
                 }
                 .onChange(of: viewModel.messages.count) { _, _ in
+                    if showDialogueChips, viewModel.messages.contains(where: { $0.role == .user }) {
+                        showDialogueChips = false
+                    }
                     scrollToBottom(proxy)
                     saveConversation()
                 }
