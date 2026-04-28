@@ -88,6 +88,12 @@ struct TemplateDetailView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .padding(.top, Theme.Spacing.xs)
 
+            Text(template.engine)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.accent.opacity(0.85))
+                .italic()
+                .padding(.top, Theme.Spacing.sm)
+
             Text("\(template.scenes.count) scenes \u{00B7} \(template.totalShots) shots \u{00B7} \(template.castLabel)")
                 .font(Theme.Typography.caption)
                 .foregroundStyle(Theme.Colors.textSecondary.opacity(0.7))
@@ -127,6 +133,12 @@ struct TemplateDetailView: View {
                         .font(Theme.Typography.body)
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .padding(.top, Theme.Spacing.sm)
+
+                    Text(scene.emotionalEscalation)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary.opacity(0.6))
+                        .italic()
+                        .padding(.top, Theme.Spacing.xs)
 
                     VStack(spacing: Theme.Spacing.sm) {
                         ForEach(scene.shots, id: \.shotNumber) { shot in

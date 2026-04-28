@@ -7,6 +7,7 @@ struct FilmTemplate: Codable, Identifiable, Hashable {
     let title: String
     let description: String
     let mood: String
+    let engine: String
     let estimatedDurationMinutes: Int
     let estimatedShootMinutes: Int
     let castSize: Int
@@ -28,6 +29,7 @@ struct FilmTemplate: Codable, Identifiable, Hashable {
 struct TemplateScene: Codable {
     let sceneNumber: Int
     let beatDescription: String
+    let emotionalEscalation: String
     let placeholderDescription: String
     let shots: [TemplateShot]
 }
