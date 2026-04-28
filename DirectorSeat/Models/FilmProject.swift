@@ -25,6 +25,7 @@ class FilmProject {
     var conversationsJSON: Data?
     var templateID: String?
     var templateCustomization: String?
+    var shootingLanguage: String?
 
     init(
         title: String,

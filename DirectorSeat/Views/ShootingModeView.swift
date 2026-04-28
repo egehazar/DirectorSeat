@@ -203,8 +203,8 @@ struct ShootingModeView: View {
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Colors.textSecondary)
 
-                if let dialogue = shot.dialogue {
-                    Text("\u{201C}\(dialogue)\u{201D}")
+                if !shot.displayLine.isEmpty {
+                    Text("\u{201C}\(shot.displayLine)\u{201D}")
                         .font(Theme.Typography.body.italic())
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
@@ -243,8 +243,8 @@ struct ShootingModeView: View {
                         .foregroundStyle(.white.opacity(0.8))
                         .padding(.top, Theme.Spacing.sm)
 
-                    if let dialogue = shot.dialogue {
-                        Text("\u{201C}\(dialogue)\u{201D}")
+                    if !shot.displayLine.isEmpty {
+                        Text("\u{201C}\(shot.displayLine)\u{201D}")
                             .font(Theme.Typography.body.italic())
                             .foregroundStyle(.white)
                             .padding(.top, Theme.Spacing.sm)

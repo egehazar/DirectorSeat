@@ -60,7 +60,14 @@ class PlanGenerationService {
                   "direction_text": "Max 2 sentences describing the shot",
                   "camera_placement": "Physical instruction using household items with OPTIONS, e.g. 'on any surface at face height — stool, stack of books, kitchen counter'",
                   "actor_direction": "What the actor(s) should do",
-                  "dialogue": "Line of dialogue or null",
+                  "dialogue_direction": {
+                    "has_spoken_line": true,
+                    "speaker": "CHARACTER A or specific role name",
+                    "beat_purpose": "What this line does narratively",
+                    "voice_cue": "How it should sound when delivered",
+                    "draft_line": "The actual line of dialogue",
+                    "user_written_line": null
+                  } OR null if the shot has no spoken content,
                   "estimated_duration_seconds": <number>,
                   "solo_shootable": <boolean>,
                   "audio_risk": "low | medium | high",
@@ -108,9 +115,6 @@ class PlanGenerationService {
 
         NARRATIVE CONTINUITY:
         - If a scene is reframed due to environmental friction (e.g. rain moved indoors, outdoor moved inside), you must update the story fiction to match. A character cannot "enter soaked from rain" if the entire scene takes place indoors. Either establish an exterior briefly (phone pointed at a window + door opening) or rewrite the action to fit the actual setting (e.g. both characters were already indoors, waiting out a storm together).
-
-        DIALOGUE REALISM:
-        - Write dialogue for amateur performers, not trained actors. Avoid poetic, screenplay-flowery lines. Prefer natural, mundane, slightly awkward exchanges that real people would say. "I was hoping it would rain today" is too literary. "Thanks, that came out of nowhere" is better.
 
         FRAMING WITHOUT A CAMERA OPERATOR:
         - When a shot does not have a designated camera operator (i.e. solo_shootable is true or no third person is available), bias toward framings that work from a static phone position. Prefer two-shots (both actors in one frame) over over-shoulder reverses. Over-shoulder should only be used when the user has confirmed a camera operator is available.
@@ -171,6 +175,83 @@ class PlanGenerationService {
 
         CRITICAL CONSTRAINT
         Your editorial decisions must be defensible. Every editing_note should explain WHY this hold duration, this transition, this audio treatment serves the story. Editing without intent is what makes amateur films feel amateur.
+
+        ===========================
+        DIALOGUE CRAFT
+        ===========================
+
+        For every shot, decide whether it contains a spoken line and, if so, scaffold and draft it carefully. The user will see your draft and either keep it, edit it, or rewrite it. Either way, the draft must be performance-grade — natural enough that a non-actor reading it on camera does not sound stilted.
+
+        WHEN A SHOT HAS A SPOKEN LINE
+
+        Mark has_spoken_line: true when the shot contains:
+        - Dialogue between characters
+        - Monologue (one character speaking aloud)
+        - Whispered, muttered, or under-the-breath spoken content
+        - A character reading something aloud, calling out, or vocalizing thought
+
+        Mark has_spoken_line: false when the shot is purely visual — establishing shots, reaction shots without verbal response, action beats, silent moments. Not every shot needs a line. Many of the best shots are silent.
+
+        Most films should have a mix. A 6-shot film with spoken lines on every shot will feel verbose. A 6-shot film with zero lines will feel like a music video. Aim for variety: some dialogue-bearing shots, some silent ones.
+
+        WRITING A GOOD DRAFT LINE
+
+        The draft line is what the user will see and (often) say on camera. It must sound like something a real person would actually say, not how a screenwriter would write it.
+
+        Rules:
+
+        1. SPOKEN, NOT WRITTEN. Use contractions ("I'm" not "I am"). Allow false starts ("Wait, did you—"). Allow trailing off (real speech does this constantly). Allow incomplete sentences. Real people don't speak in full grammatical sentences.
+
+        2. SHORT. Most lines are under 12 words. Long expository speeches are amateur hour. If a line needs to convey a lot, break it across two shots with a beat between.
+
+        3. SUBTEXT. People rarely say what they mean directly. Lines should usually point at the real meaning sideways. "Did you eat already?" carries different weight depending on context. Direct lines like "I am angry that you forgot our anniversary" are amateur. Indirect lines like "Did you have a good day?" with context can carry the same weight and feel real.
+
+        4. REGISTER. Match the line to the speaker. A teenager doesn't say "I find this distressing." A scared adult doesn't say "Yo, this is wack." Use the voice_cue to anchor register, then write a line that fits.
+
+        5. NO ON-THE-NOSE EMOTION. Don't write "I love you" unless the moment specifically demands the directness. Don't write "I'm scared" — write what a scared person says. ("It's nothing." "I'm fine, just tired." A nervous laugh.)
+
+        6. COMEDY HAS RHYTHM. Comedic lines need setup-and-pivot. The unexpected word goes at the end. "I just realized I left my keys in the apartment. And the apartment in your name." The pivot to "your name" is the joke; placing it at the end gets the laugh.
+
+        7. DRAMA NEEDS RESTRAINT. Big emotional moments often work better with small lines. The character whose world is falling apart says "Yeah." The character about to leave says "I should go." The understatement is what makes it land.
+
+        8. NEVER USE PLACEHOLDERS LIKE [SOMETHING]. Write the actual line. The user can edit it if they want their own version.
+
+        WRITING BEAT_PURPOSE
+
+        One sentence describing what the line does narratively. Not what the character feels. What the line accomplishes in the story.
+
+        Good: "Plants the suspicion that Character A is hiding something, without revealing it."
+        Good: "Lands the joke after Scene 2's setup, paying off the awkward dinner."
+        Bad: "Character A says they're tired."
+        Bad: "This is dialogue."
+
+        The user reads beat_purpose to understand WHY this line is in the film. It's their map for editing the line without losing the story function.
+
+        WRITING VOICE_CUE
+
+        One sentence describing how the line should sound when delivered. Tone, energy, pace, posture, what's underneath the surface.
+
+        Good: "Said offhandedly, mid-bite, but the question is loaded — they've been waiting to ask."
+        Good: "A tight, fast clip — afraid if they slow down they won't say it at all."
+        Bad: "Spoken normally."
+        Bad: "Casual tone."
+
+        The user reads voice_cue to understand HOW to perform the line. It's their direction for delivery.
+
+        LANGUAGE
+
+        Generate dialogue in the user's shooting language. The user's project specifies a language code (or "auto" for inference from the user's idea text). Default behavior:
+
+        - If language code is provided and is not "auto": generate all dialogue (draft_line) and all scaffolding (beat_purpose, voice_cue) in that language.
+        - If language code is "auto" or not provided: detect the language of the user's idea text and use that language for all dialogue and scaffolding.
+
+        Do not mix languages within a film. If detection is ambiguous, default to English.
+
+        Beat purposes and voice cues remain in the same language as dialogue, so the user reads everything in their chosen language.
+
+        CRITICAL CONSTRAINT
+
+        A film with weak dialogue feels worse than a film with no dialogue. If you cannot write a strong draft for a particular shot, mark has_spoken_line: false and let the moment be silent. Silence is always better than weak dialogue.
         """
 
     private struct APIResponse: Decodable {
@@ -182,13 +263,13 @@ class PlanGenerationService {
         let text: String?
     }
 
-    func generate(idea: String, cast: CastChoice, context: String) async throws -> FilmmakingPlan {
+    func generate(idea: String, cast: CastChoice, context: String, language: String? = nil) async throws -> FilmmakingPlan {
         let apiKey = Secrets.anthropicAPIKey
         guard !apiKey.isEmpty, apiKey != "REPLACE_ME" else {
             throw PlanGenerationError.apiKeyNotConfigured
         }
 
-        let userMessage = buildUserMessage(idea: idea, cast: cast, context: context)
+        let userMessage = buildUserMessage(idea: idea, cast: cast, context: context, language: language)
 
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
@@ -267,7 +348,7 @@ class PlanGenerationService {
         }
     }
 
-    private func buildUserMessage(idea: String, cast: CastChoice, context: String) -> String {
+    private func buildUserMessage(idea: String, cast: CastChoice, context: String, language: String? = nil) -> String {
         let castLabel: String
         switch cast {
         case .solo: castLabel = "Just me (solo filmmaker)"
@@ -280,6 +361,7 @@ class PlanGenerationService {
         if !context.isEmpty {
             message += "\n\nAdditional context: \(context)"
         }
+        message += "\n\nShooting language: \(language ?? "auto")"
         return message
     }
 

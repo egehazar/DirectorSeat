@@ -19,6 +19,7 @@ class PlanGenerationViewModel: ObservableObject {
     private var lastIdea = ""
     private var lastCast: CastChoice = .decideLater
     private var lastContext = ""
+    private var lastLanguage: String?
     private var lastTemplate: FilmTemplate?
 
     private let loadingMessages = [
@@ -29,10 +30,11 @@ class PlanGenerationViewModel: ObservableObject {
     ]
     private var messageIndex = 0
 
-    func generate(idea: String, cast: CastChoice, context: String) async {
+    func generate(idea: String, cast: CastChoice, context: String, language: String? = nil) async {
         lastIdea = idea
         lastCast = cast
         lastContext = context
+        lastLanguage = language
         lastTemplate = nil
         await performGeneration()
     }
@@ -60,7 +62,7 @@ class PlanGenerationViewModel: ObservableObject {
         startLoadingMessageCycle()
 
         do {
-            let plan = try await service.generate(idea: lastIdea, cast: lastCast, context: lastContext)
+            let plan = try await service.generate(idea: lastIdea, cast: lastCast, context: lastContext, language: lastLanguage)
             state = .success(plan)
         } catch {
             let message = error.localizedDescription

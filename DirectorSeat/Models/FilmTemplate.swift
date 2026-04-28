@@ -37,4 +37,21 @@ struct TemplateShot: Codable {
     let shotType: String
     let beatPurpose: String
     let placeholderDirection: String
+    var dialogueIntent: TemplateDialogueIntent? = nil
+}
+
+struct TemplateDialogueIntent: Codable {
+    let hasSpokenLine: Bool
+    let speaker: String?
+    let beatPurpose: String
+    let voiceCue: String
+    let draftHint: String
+
+    enum CodingKeys: String, CodingKey {
+        case hasSpokenLine = "has_spoken_line"
+        case speaker
+        case beatPurpose = "beat_purpose"
+        case voiceCue = "voice_cue"
+        case draftHint = "draft_hint"
+    }
 }

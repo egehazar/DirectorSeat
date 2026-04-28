@@ -166,6 +166,32 @@ struct QuickContextView: View {
             .padding(.horizontal, Theme.Spacing.lg)
             .padding(.top, Theme.Spacing.md)
 
+            Menu {
+                ForEach(ShootingLanguage.allCases, id: \.self) { lang in
+                    Button {
+                        viewModel.shootingLanguage = lang
+                    } label: {
+                        HStack {
+                            Text(lang.displayName)
+                            if viewModel.shootingLanguage == lang {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: Theme.Spacing.xs) {
+                    Text("Shooting language: \(viewModel.shootingLanguage.displayName)")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.lg)
+            .padding(.top, Theme.Spacing.sm)
+
             Spacer()
 
             VStack(spacing: Theme.Spacing.md) {
@@ -189,18 +215,22 @@ struct QuickContextView: View {
     private func startGeneration() {
         let store = ProjectStore(modelContext: modelContext)
         let cast = viewModel.castChoice ?? .decideLater
+        let lang = viewModel.shootingLanguage
         let newProject = store.createProject(
             ideaText: ideaText,
             castChoice: cast,
             contextText: viewModel.contextText
         )
+        newProject.shootingLanguage = lang == .auto ? nil : lang.rawValue
+        try? modelContext.save()
         project = newProject
         showPlanGeneration = true
         Task {
             await planViewModel.generate(
                 idea: ideaText,
                 cast: cast,
-                context: viewModel.contextText
+                context: viewModel.contextText,
+                language: lang == .auto ? nil : lang.rawValue
             )
         }
     }

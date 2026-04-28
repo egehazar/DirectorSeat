@@ -172,7 +172,7 @@ class PlanRefinementService {
         - PROPS: Does any other shot reference a prop this change adds, removes, or alters? If Shot 2 uses "the note" and you remove it from Shot 1, Shot 2 is broken.
         - LOCATIONS: If the location changes, do adjacent shots assume the same room/setup? Changing Shot 3's location from "kitchen" to "hallway" may break Shot 4 if it assumes kitchen continuity.
         - CHARACTER STATE: If a character's position or action changes, do later shots depend on the prior state? If Shot 2 has the character sitting, and Shot 3 says "stands up," removing the sitting from Shot 2 breaks the transition.
-        - DIALOGUE CONTINUITY: If a line is cut, do later shots react to or reference it?
+        - DIALOGUE DEPENDENCIES: If a shot's dialogue changes, do downstream shots reference what was said? Example: "Did you eat already?" in shot 4 sets up "Yeah, I had something at home" in shot 6. If the user changes shot 4's line, shot 6's response may need updating. Walk the full dialogue chain.
         - CAMERA SETUP: If camera placement changes, does the next shot assume the same setup position?
 
         If dependent changes are needed, you MUST include ALL affected shots in dependent_shot_changes with their complete updated content. If only the target shot changes, dependent_shot_changes MUST be an empty array [].
@@ -191,7 +191,14 @@ class PlanRefinementService {
               "direction_text": "max 2 sentences describing the shot",
               "camera_placement": "physical instruction using household items with OPTIONS",
               "actor_direction": "what the actor(s) should do",
-              "dialogue": "line of dialogue" or null,
+              "dialogue_direction": {
+                "has_spoken_line": true,
+                "speaker": "CHARACTER A or role name",
+                "beat_purpose": "what this line does narratively",
+                "voice_cue": "how it should sound when delivered",
+                "draft_line": "the actual line of dialogue",
+                "user_written_line": null
+              } OR null,
               "estimated_duration_seconds": <int>,
               "solo_shootable": <bool>,
               "audio_risk": "low | medium | high",
@@ -209,7 +216,7 @@ class PlanRefinementService {
                 "direction_text": "...",
                 "camera_placement": "...",
                 "actor_direction": "...",
-                "dialogue": "..." or null,
+                "dialogue_direction": { ... same shape as above ... } OR null,
                 "estimated_duration_seconds": <int>,
                 "solo_shootable": <bool>,
                 "audio_risk": "low | medium | high",
@@ -224,6 +231,9 @@ class PlanRefinementService {
             "summary": "1-sentence human-readable description of the change, shown to user"
           }
         }
+
+        DIALOGUE CRAFT HELP:
+        When the user is asking for dialogue-specific help ("make this funnier", "this is too on-the-nose", "give me three alternatives", "how should I say this"), respond conversationally with options or guidance — do NOT necessarily propose a structured revision. Offer alternatives, explain the craft reasoning, and let the user decide. They can request a formal revision afterward if they like one of your suggestions. This conversational mode is for exploration; revisions are for commitment.
 
         Remember: speak like a friendly director helping a first-timer, not a chatbot. Be warm and direct.
         """

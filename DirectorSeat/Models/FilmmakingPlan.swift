@@ -35,6 +35,26 @@ enum ScenePacingProfile: String, Codable {
     case climactic
 }
 
+// MARK: - Dialogue Direction
+
+struct DialogueDirection: Codable, Hashable {
+    let hasSpokenLine: Bool
+    let speaker: String?
+    let beatPurpose: String
+    let voiceCue: String
+    let draftLine: String?
+    var userWrittenLine: String?
+
+    enum CodingKeys: String, CodingKey {
+        case hasSpokenLine = "has_spoken_line"
+        case speaker
+        case beatPurpose = "beat_purpose"
+        case voiceCue = "voice_cue"
+        case draftLine = "draft_line"
+        case userWrittenLine = "user_written_line"
+    }
+}
+
 // MARK: - Plan Model
 
 struct FilmmakingPlan: Codable {
@@ -106,7 +126,7 @@ struct Shot: Codable, Identifiable {
     let directionText: String
     let cameraPlacement: String
     let actorDirection: String
-    let dialogue: String?
+    let dialogueDirection: DialogueDirection?
     let estimatedDurationSeconds: Int
     let soloShootable: Bool
     let audioRisk: String
@@ -125,7 +145,7 @@ struct Shot: Codable, Identifiable {
         case directionText = "direction_text"
         case cameraPlacement = "camera_placement"
         case actorDirection = "actor_direction"
-        case dialogue
+        case dialogueDirection = "dialogue_direction"
         case estimatedDurationSeconds = "estimated_duration_seconds"
         case soloShootable = "solo_shootable"
         case audioRisk = "audio_risk"
@@ -137,8 +157,13 @@ struct Shot: Codable, Identifiable {
         case editingNote = "editing_note"
     }
 
+    // Legacy key for backward-compatible decoding of saved projects
+    private enum LegacyCodingKeys: String, CodingKey {
+        case dialogue
+    }
+
     init(shotNumber: Int, shotType: String, directionText: String,
-         cameraPlacement: String, actorDirection: String, dialogue: String?,
+         cameraPlacement: String, actorDirection: String, dialogueDirection: DialogueDirection?,
          estimatedDurationSeconds: Int, soloShootable: Bool, audioRisk: String,
          recommendedHoldSeconds: Double? = nil, transitionInType: TransitionType? = nil,
          transitionOutType: TransitionType? = nil, pacingRole: PacingRole? = nil,
@@ -148,7 +173,7 @@ struct Shot: Codable, Identifiable {
         self.directionText = directionText
         self.cameraPlacement = cameraPlacement
         self.actorDirection = actorDirection
-        self.dialogue = dialogue
+        self.dialogueDirection = dialogueDirection
         self.estimatedDurationSeconds = estimatedDurationSeconds
         self.soloShootable = soloShootable
         self.audioRisk = audioRisk
@@ -158,6 +183,43 @@ struct Shot: Codable, Identifiable {
         self.pacingRole = pacingRole
         self.audioTreatment = audioTreatment
         self.editingNote = editingNote
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        shotNumber = try container.decode(Int.self, forKey: .shotNumber)
+        shotType = try container.decode(String.self, forKey: .shotType)
+        directionText = try container.decode(String.self, forKey: .directionText)
+        cameraPlacement = try container.decode(String.self, forKey: .cameraPlacement)
+        actorDirection = try container.decode(String.self, forKey: .actorDirection)
+        estimatedDurationSeconds = try container.decode(Int.self, forKey: .estimatedDurationSeconds)
+        soloShootable = try container.decode(Bool.self, forKey: .soloShootable)
+        audioRisk = try container.decode(String.self, forKey: .audioRisk)
+        recommendedHoldSeconds = try container.decodeIfPresent(Double.self, forKey: .recommendedHoldSeconds)
+        transitionInType = try container.decodeIfPresent(TransitionType.self, forKey: .transitionInType)
+        transitionOutType = try container.decodeIfPresent(TransitionType.self, forKey: .transitionOutType)
+        pacingRole = try container.decodeIfPresent(PacingRole.self, forKey: .pacingRole)
+        audioTreatment = try container.decodeIfPresent(AudioTreatment.self, forKey: .audioTreatment)
+        editingNote = try container.decodeIfPresent(String.self, forKey: .editingNote)
+
+        // New dialogue_direction field; fall back to legacy dialogue string for saved projects
+        if let dd = try container.decodeIfPresent(DialogueDirection.self, forKey: .dialogueDirection) {
+            dialogueDirection = dd
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            if let legacyLine = try legacy.decodeIfPresent(String.self, forKey: .dialogue) {
+                dialogueDirection = DialogueDirection(
+                    hasSpokenLine: true,
+                    speaker: nil,
+                    beatPurpose: "",
+                    voiceCue: "",
+                    draftLine: nil,
+                    userWrittenLine: legacyLine
+                )
+            } else {
+                dialogueDirection = nil
+            }
+        }
     }
 }
 
@@ -231,7 +293,7 @@ extension Shot {
             directionText: directionText,
             cameraPlacement: cameraPlacement,
             actorDirection: actorDirection,
-            dialogue: dialogue,
+            dialogueDirection: dialogueDirection,
             estimatedDurationSeconds: estimatedDurationSeconds,
             soloShootable: soloShootable,
             audioRisk: audioRisk,
@@ -242,6 +304,10 @@ extension Shot {
             audioTreatment: audioTreatment,
             editingNote: editingNote
         )
+    }
+
+    var displayLine: String {
+        dialogueDirection?.userWrittenLine ?? dialogueDirection?.draftLine ?? ""
     }
 }
 
@@ -271,11 +337,11 @@ extension FilmmakingPlan {
         estimatedTotalShootMinutes: 25,
         scenes: [
             FilmScene(sceneNumber: 1, description: "The protagonist hears something unsettling.", locationDescription: "Living room", castCount: 1, shots: [
-                Shot(shotNumber: 1, shotType: "wide", directionText: "Wide shot of the living room. The protagonist sits on the couch, looking alert.", cameraPlacement: "On a shelf or stack of books across the room", actorDirection: "Sit still, then slowly look toward the hallway", dialogue: nil, estimatedDurationSeconds: 15, soloShootable: true, audioRisk: "low"),
-                Shot(shotNumber: 2, shotType: "close-up", directionText: "Close-up of the protagonist's face showing concern.", cameraPlacement: "On the coffee table at face height", actorDirection: "Look worried, glance toward the sound", dialogue: "What was that?", estimatedDurationSeconds: 10, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 1, shotType: "wide", directionText: "Wide shot of the living room. The protagonist sits on the couch, looking alert.", cameraPlacement: "On a shelf or stack of books across the room", actorDirection: "Sit still, then slowly look toward the hallway", dialogueDirection: nil, estimatedDurationSeconds: 15, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 2, shotType: "close-up", directionText: "Close-up of the protagonist's face showing concern.", cameraPlacement: "On the coffee table at face height", actorDirection: "Look worried, glance toward the sound", dialogueDirection: DialogueDirection(hasSpokenLine: true, speaker: "Protagonist", beatPurpose: "Breaks the silence to externalize rising fear", voiceCue: "Whispered, half to themselves — not expecting an answer", draftLine: "What was that?"), estimatedDurationSeconds: 10, soloShootable: true, audioRisk: "low"),
             ]),
             FilmScene(sceneNumber: 2, description: "The protagonist investigates the hallway.", locationDescription: "Hallway", castCount: 1, shots: [
-                Shot(shotNumber: 1, shotType: "medium", directionText: "The protagonist walks slowly down the hallway toward a closed door.", cameraPlacement: "On a chair or stool at the end of the hallway", actorDirection: "Walk slowly, hand on the wall, looking ahead", dialogue: nil, estimatedDurationSeconds: 12, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 1, shotType: "medium", directionText: "The protagonist walks slowly down the hallway toward a closed door.", cameraPlacement: "On a chair or stool at the end of the hallway", actorDirection: "Walk slowly, hand on the wall, looking ahead", dialogueDirection: nil, estimatedDurationSeconds: 12, soloShootable: true, audioRisk: "low"),
             ]),
         ],
         cast: [CastMember(roleName: "Protagonist", description: "A cautious person living alone")],
@@ -291,9 +357,9 @@ extension FilmmakingPlan {
         estimatedTotalShootMinutes: 2,
         scenes: [
             FilmScene(sceneNumber: 1, description: "Three quick shots to test the full pipeline.", locationDescription: "Anywhere", castCount: 1, shots: [
-                Shot(shotNumber: 1, shotType: "wide", directionText: "Stand a few feet back from your phone. Wave at the camera.", cameraPlacement: "On any surface — shelf, table, stack of books", actorDirection: "Wave at the camera for a few seconds", dialogue: nil, estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
-                Shot(shotNumber: 2, shotType: "medium", directionText: "Move closer. Smile and say: 'This is a test.'", cameraPlacement: "Same position", actorDirection: "Step closer, smile, say the line", dialogue: "This is a test.", estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
-                Shot(shotNumber: 3, shotType: "close-up", directionText: "Get close. Hold your hand up to the camera, then drop it.", cameraPlacement: "Same position", actorDirection: "Hold hand up, pause, drop it", dialogue: nil, estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 1, shotType: "wide", directionText: "Stand a few feet back from your phone. Wave at the camera.", cameraPlacement: "On any surface — shelf, table, stack of books", actorDirection: "Wave at the camera for a few seconds", dialogueDirection: nil, estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 2, shotType: "medium", directionText: "Move closer. Smile and say: 'This is a test.'", cameraPlacement: "Same position", actorDirection: "Step closer, smile, say the line", dialogueDirection: DialogueDirection(hasSpokenLine: true, speaker: "Tester", beatPurpose: "Confirms audio capture is working", voiceCue: "Casual, direct to camera", draftLine: "This is a test."), estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 3, shotType: "close-up", directionText: "Get close. Hold your hand up to the camera, then drop it.", cameraPlacement: "Same position", actorDirection: "Hold hand up, pause, drop it", dialogueDirection: nil, estimatedDurationSeconds: 5, soloShootable: true, audioRisk: "low"),
             ]),
         ],
         cast: [CastMember(roleName: "Tester", description: "You")],
@@ -309,17 +375,17 @@ extension FilmmakingPlan {
         estimatedTotalShootMinutes: 35,
         scenes: [
             FilmScene(sceneNumber: 1, description: "The reader settles in with a book and discovers the note.", locationDescription: "Indoor library or any room with a table", castCount: 1, shots: [
-                Shot(shotNumber: 1, shotType: "wide", directionText: "Wide shot of the reader sitting at a table, opening the book. A folded note falls out.", cameraPlacement: "On a shelf or stack of books across the table", actorDirection: "Open the book casually, notice something fall out, pause", dialogue: nil, estimatedDurationSeconds: 20, soloShootable: true, audioRisk: "low"),
-                Shot(shotNumber: 2, shotType: "close-up", directionText: "Close-up of the note unfolding in the reader's hands.", cameraPlacement: "On the table, propped against the mug", actorDirection: "Slowly unfold the note, hold it still for the camera", dialogue: nil, estimatedDurationSeconds: 12, soloShootable: true, audioRisk: "low"),
-                Shot(shotNumber: 3, shotType: "close-up", directionText: "Close-up of the reader's face as they read, expression shifting from curiosity to concern.", cameraPlacement: "On a stack of books at face height", actorDirection: "Read the note, let your expression change slowly", dialogue: "What the...", estimatedDurationSeconds: 10, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 1, shotType: "wide", directionText: "Wide shot of the reader sitting at a table, opening the book. A folded note falls out.", cameraPlacement: "On a shelf or stack of books across the table", actorDirection: "Open the book casually, notice something fall out, pause", dialogueDirection: nil, estimatedDurationSeconds: 20, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 2, shotType: "close-up", directionText: "Close-up of the note unfolding in the reader's hands.", cameraPlacement: "On the table, propped against the mug", actorDirection: "Slowly unfold the note, hold it still for the camera", dialogueDirection: nil, estimatedDurationSeconds: 12, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 3, shotType: "close-up", directionText: "Close-up of the reader's face as they read, expression shifting from curiosity to concern.", cameraPlacement: "On a stack of books at face height", actorDirection: "Read the note, let your expression change slowly", dialogueDirection: DialogueDirection(hasSpokenLine: true, speaker: "The Reader", beatPurpose: "Reveals the note's content is alarming without showing it", voiceCue: "Muttered, trailing off — genuine surprise, not performed", draftLine: "What the..."), estimatedDurationSeconds: 10, soloShootable: true, audioRisk: "low"),
             ]),
             FilmScene(sceneNumber: 2, description: "The reader examines the book more closely, finding something hidden.", locationDescription: "Same table", castCount: 1, shots: [
-                Shot(shotNumber: 1, shotType: "medium", directionText: "Medium shot of the reader flipping through pages quickly, looking for more.", cameraPlacement: "On a chair pulled to the side of the table", actorDirection: "Flip through pages with urgency, stop suddenly", dialogue: nil, estimatedDurationSeconds: 15, soloShootable: true, audioRisk: "low"),
-                Shot(shotNumber: 2, shotType: "close-up", directionText: "Close-up of a small key taped inside the back cover.", cameraPlacement: "Flat on the table, angled up at the book", actorDirection: "Hold the book open to reveal the key", dialogue: nil, estimatedDurationSeconds: 8, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 1, shotType: "medium", directionText: "Medium shot of the reader flipping through pages quickly, looking for more.", cameraPlacement: "On a chair pulled to the side of the table", actorDirection: "Flip through pages with urgency, stop suddenly", dialogueDirection: nil, estimatedDurationSeconds: 15, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 2, shotType: "close-up", directionText: "Close-up of a small key taped inside the back cover.", cameraPlacement: "Flat on the table, angled up at the book", actorDirection: "Hold the book open to reveal the key", dialogueDirection: nil, estimatedDurationSeconds: 8, soloShootable: true, audioRisk: "low"),
             ]),
             FilmScene(sceneNumber: 3, description: "The reader looks around, realizing someone left this for them specifically.", locationDescription: "Same room, near a window", castCount: 1, shots: [
-                Shot(shotNumber: 1, shotType: "medium", directionText: "Medium shot of the reader standing, holding the note and key, looking toward the window.", cameraPlacement: "On a shelf or counter across the room", actorDirection: "Stand up slowly, hold both items, glance at the window", dialogue: nil, estimatedDurationSeconds: 15, soloShootable: true, audioRisk: "medium"),
-                Shot(shotNumber: 2, shotType: "close-up", directionText: "Final close-up of the note and key held together in the reader's hand.", cameraPlacement: "On the table at hand height", actorDirection: "Hold both items together, turn them over slowly", dialogue: nil, estimatedDurationSeconds: 10, soloShootable: true, audioRisk: "low"),
+                Shot(shotNumber: 1, shotType: "medium", directionText: "Medium shot of the reader standing, holding the note and key, looking toward the window.", cameraPlacement: "On a shelf or counter across the room", actorDirection: "Stand up slowly, hold both items, glance at the window", dialogueDirection: nil, estimatedDurationSeconds: 15, soloShootable: true, audioRisk: "medium"),
+                Shot(shotNumber: 2, shotType: "close-up", directionText: "Final close-up of the note and key held together in the reader's hand.", cameraPlacement: "On the table at hand height", actorDirection: "Hold both items together, turn them over slowly", dialogueDirection: nil, estimatedDurationSeconds: 10, soloShootable: true, audioRisk: "low"),
             ]),
         ],
         cast: [CastMember(roleName: "The Reader", description: "A quiet, curious person who reads alone")],

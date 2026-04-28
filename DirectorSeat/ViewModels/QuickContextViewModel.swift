@@ -13,10 +13,43 @@ enum CastChoice: String {
     }
 }
 
+enum ShootingLanguage: String, CaseIterable {
+    case auto = "auto"
+    case english = "en"
+    case turkish = "tr"
+    case spanish = "es"
+    case portuguese = "pt"
+    case french = "fr"
+    case german = "de"
+    case italian = "it"
+    case tagalog = "tl"
+    case indonesian = "id"
+    case arabic = "ar"
+    case hindi = "hi"
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto-detect"
+        case .english: return "English"
+        case .turkish: return "Turkish"
+        case .spanish: return "Spanish"
+        case .portuguese: return "Portuguese"
+        case .french: return "French"
+        case .german: return "German"
+        case .italian: return "Italian"
+        case .tagalog: return "Tagalog"
+        case .indonesian: return "Indonesian"
+        case .arabic: return "Arabic"
+        case .hindi: return "Hindi"
+        }
+    }
+}
+
 class QuickContextViewModel: ObservableObject {
     @Published var currentCard: Int
     @Published var castChoice: CastChoice?
     @Published var contextText = ""
+    @Published var shootingLanguage: ShootingLanguage = .auto
 
     init(initialCard: Int = 1) {
         currentCard = initialCard

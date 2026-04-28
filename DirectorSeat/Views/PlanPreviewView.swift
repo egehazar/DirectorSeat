@@ -81,8 +81,8 @@ struct PlanPreviewView: View {
                                                 .font(Theme.Typography.body)
                                                 .foregroundStyle(Theme.Colors.textPrimary)
 
-                                            if let dialogue = shot.dialogue {
-                                                Text("\u{201C}\(dialogue)")
+                                            if !shot.displayLine.isEmpty {
+                                                Text("\u{201C}\(shot.displayLine)")
                                                     .font(Theme.Typography.body.italic())
                                                     .foregroundStyle(Theme.Colors.textSecondary)
                                             }
