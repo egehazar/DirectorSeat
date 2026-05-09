@@ -1,0 +1,50 @@
+{
+  "_review_needed": false,
+  "id": "test-ambient-pad",
+  "source_url": "synthesized for pipeline test",
+  "duration_seconds": 5.0,
+  "_analysis": {
+    "metadata": {
+      "sample_rate": 44100,
+      "channels": 1,
+      "bitrate": 705600
+    },
+    "duration_seconds": 5.0,
+    "tempo_bpm_estimate": 0.0,
+    "dynamic_range_db": 5.7,
+    "rms_curve": {
+      "intro": "medium",
+      "early": "high",
+      "mid": "high",
+      "late": "high",
+      "outro": "medium"
+    },
+    "rms_normalized": [
+      0.487,
+      1.0,
+      1.0,
+      1.0,
+      0.514
+    ]
+  },
+  "_note": "Synthesized 220 Hz sine + 4 Hz tremolo with 1s fade-in/out — fixture for verifying the tagging pipeline runs end-to-end. Replace before shipping.",
+  "title": "Test Ambient Pad",
+  "artist": "DirectorSeat (synthesized fixture)",
+  "license": "CC0",
+  "mood_primary": "ambient",
+  "mood_secondary": null,
+  "tempo_bucket": "slow",
+  "intensity": 1,
+  "instrumentation": "single sine wave",
+  "recommended_for": [
+    "smoke test for the tagging pipeline",
+    "sanity-check fixture in build_database.py",
+    "placeholder slot before a real ambient track is sourced"
+  ],
+  "avoid_for": [
+    "any actual film",
+    "user-facing production use"
+  ],
+  "loop_friendly": false,
+  "has_clear_arc": false
+}

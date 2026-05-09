@@ -15,18 +15,22 @@ class PostProductionState: ObservableObject {
     @Published var assemblyError: String?
 
     var project: FilmProject?
-    private let service = VideoAssemblyService()
+    private let legacyService = VideoAssemblyService()
+    private let assemblyEngine = AssemblyEngine()
     private var lastTakes: [URL] = []
+    private var lastPlan: FilmmakingPlan?
 
     init() {
         directorName = UserDefaults.standard.string(forKey: "directorName") ?? ""
     }
 
-    func assemble(takes: [URL]) async {
+    func assemble(plan: FilmmakingPlan, takes: [URL]) async {
         lastTakes = takes
+        lastPlan = plan
         isAssembling = true
         assemblyError = nil
-        print("[DirectorSeat] Assembly started with \(takes.count) clips")
+        let engineLabel = FeatureFlags.useAssemblyEngine ? "AssemblyEngine" : "VideoAssemblyService (legacy)"
+        print("[DirectorSeat] Assembly started with \(takes.count) clips via \(engineLabel)")
         do {
             let outputDir: URL
             if let project {
@@ -36,7 +40,18 @@ class PostProductionState: ObservableObject {
                 outputDir = FileManager.default.temporaryDirectory
             }
             let outputURL = outputDir.appendingPathComponent("assembled_\(UUID().uuidString).mov")
-            assembledVideoURL = try await service.assembleClips(urls: takes, outputURL: outputURL)
+
+            if FeatureFlags.useAssemblyEngine {
+                assembledVideoURL = try await assemblyEngine.assembleFromOrderedURLs(
+                    plan: plan,
+                    takeURLs: takes,
+                    musicURL: nil,
+                    outputURL: outputURL,
+                    progress: { _ in }
+                )
+            } else {
+                assembledVideoURL = try await legacyService.assembleClips(urls: takes, outputURL: outputURL)
+            }
             print("[DirectorSeat] Assembly complete: \(outputURL)")
 
             if let project {
@@ -56,6 +71,7 @@ class PostProductionState: ObservableObject {
     }
 
     func retryAssembly() {
-        Task { await assemble(takes: lastTakes) }
+        guard let lastPlan else { return }
+        Task { await assemble(plan: lastPlan, takes: lastTakes) }
     }
 }

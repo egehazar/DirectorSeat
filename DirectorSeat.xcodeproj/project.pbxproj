@@ -6,11 +6,27 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		4B6F8E806614AB2E434AF0EC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED4E9E782F9BD2AF00513972 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ED4E9E7F2F9BD2AF00513972;
+			remoteInfo = DirectorSeat;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		6FD0C9754E5EFF7C171A849D /* DirectorSeatTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DirectorSeatTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED4E9E802F9BD2AF00513972 /* DirectorSeat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DirectorSeat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		7AC4CCA972C9A5149B9BFAFB /* DirectorSeatTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = DirectorSeatTests;
+			sourceTree = "<group>";
+		};
 		ED4E9E822F9BD2AF00513972 /* DirectorSeat */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = DirectorSeat;
@@ -19,6 +35,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		AD539C1761A3ED49D37141A0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		ED4E9E7D2F9BD2AF00513972 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -34,6 +57,7 @@
 			children = (
 				ED4E9E822F9BD2AF00513972 /* DirectorSeat */,
 				ED4E9E812F9BD2AF00513972 /* Products */,
+				7AC4CCA972C9A5149B9BFAFB /* DirectorSeatTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				ED4E9E802F9BD2AF00513972 /* DirectorSeat.app */,
+				6FD0C9754E5EFF7C171A849D /* DirectorSeatTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +73,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		E84527D02F08E390FC8184FC /* DirectorSeatTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9AE6AE4EB9385B3FCB9D3A49 /* Build configuration list for PBXNativeTarget "DirectorSeatTests" */;
+			buildPhases = (
+				EAAEA5C7B092DA5B709C01B3 /* Sources */,
+				AD539C1761A3ED49D37141A0 /* Frameworks */,
+				D2EA86024417562E9ADC029D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5ACC04D748695AC339935457 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7AC4CCA972C9A5149B9BFAFB /* DirectorSeatTests */,
+			);
+			name = DirectorSeatTests;
+			productName = DirectorSeatTests;
+			productReference = 6FD0C9754E5EFF7C171A849D /* DirectorSeatTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		ED4E9E7F2F9BD2AF00513972 /* DirectorSeat */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = ED4E9E8B2F9BD2B000513972 /* Build configuration list for PBXNativeTarget "DirectorSeat" */;
@@ -64,8 +110,6 @@
 				ED4E9E822F9BD2AF00513972 /* DirectorSeat */,
 			);
 			name = DirectorSeat;
-			packageProductDependencies = (
-			);
 			productName = DirectorSeat;
 			productReference = ED4E9E802F9BD2AF00513972 /* DirectorSeat.app */;
 			productType = "com.apple.product-type.application";
@@ -80,6 +124,10 @@
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					E84527D02F08E390FC8184FC = {
+						CreatedOnToolsVersion = 26.4.1;
+						TestTargetID = ED4E9E7F2F9BD2AF00513972;
+					};
 					ED4E9E7F2F9BD2AF00513972 = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
@@ -100,11 +148,19 @@
 			projectRoot = "";
 			targets = (
 				ED4E9E7F2F9BD2AF00513972 /* DirectorSeat */,
+				E84527D02F08E390FC8184FC /* DirectorSeatTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		D2EA86024417562E9ADC029D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		ED4E9E7E2F9BD2AF00513972 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +171,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		EAAEA5C7B092DA5B709C01B3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		ED4E9E7C2F9BD2AF00513972 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +187,102 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		5ACC04D748695AC339935457 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = DirectorSeat;
+			target = ED4E9E7F2F9BD2AF00513972 /* DirectorSeat */;
+			targetProxy = 4B6F8E806614AB2E434AF0EC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		3DE7E07FB85A5DF13A5B8E77 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = T5GHV7L967;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tastefyapp.DirectorSeatTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DirectorSeat.app/DirectorSeat";
+			};
+			name = Debug;
+		};
+		5626FBADF4D04AD2798CD4D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = T5GHV7L967;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tastefyapp.DirectorSeatTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DirectorSeat.app/DirectorSeat";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		ED4E9E892F9BD2B000513972 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -319,6 +477,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		9AE6AE4EB9385B3FCB9D3A49 /* Build configuration list for PBXNativeTarget "DirectorSeatTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3DE7E07FB85A5DF13A5B8E77 /* Debug */,
+				5626FBADF4D04AD2798CD4D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		ED4E9E7B2F9BD2AF00513972 /* Build configuration list for PBXProject "DirectorSeat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

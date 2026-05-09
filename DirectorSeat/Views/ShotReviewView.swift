@@ -191,7 +191,7 @@ struct ShotReviewView: View {
         postState.directorName = project?.directorName ?? postState.directorName
         showPostFlow = true
         Task {
-            await postState.assemble(takes: orderedTakes)
+            await postState.assemble(plan: plan, takes: orderedTakes)
             // Generate thumbnail from first selected take
             if let project {
                 let store = ProjectStore(modelContext: project.modelContext!)

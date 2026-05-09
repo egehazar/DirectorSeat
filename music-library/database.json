@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "track_count": 1,
+  "tracks": [
+    {
+      "id": "test-ambient-pad",
+      "source_url": "synthesized for pipeline test",
+      "duration_seconds": 5.0,
+      "title": "Test Ambient Pad",
+      "artist": "DirectorSeat (synthesized fixture)",
+      "license": "CC0",
+      "mood_primary": "ambient",
+      "mood_secondary": null,
+      "tempo_bucket": "slow",
+      "intensity": 1,
+      "instrumentation": "single sine wave",
+      "recommended_for": [
+        "smoke test for the tagging pipeline",
+        "sanity-check fixture in build_database.py",
+        "placeholder slot before a real ambient track is sourced"
+      ],
+      "avoid_for": [
+        "any actual film",
+        "user-facing production use"
+      ],
+      "loop_friendly": false,
+      "has_clear_arc": false
+    }
+  ]
+}
