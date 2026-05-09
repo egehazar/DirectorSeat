@@ -235,37 +235,47 @@ struct ShootingModeView: View {
                         .foregroundStyle(Theme.Colors.accent)
                         .tracking(2)
 
-                    Text(shot.directionText)
-                        .font(Theme.Typography.body)
-                        .foregroundStyle(.white)
-                        .lineLimit(3)
-                        .padding(.top, Theme.Spacing.sm)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(shot.directionText)
+                                .font(Theme.Typography.body)
+                                .foregroundStyle(.white)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, Theme.Spacing.sm)
 
-                    Text(shot.cameraPlacement)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .padding(.top, Theme.Spacing.sm)
-
-                    Text(shot.actorDirection)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .padding(.top, Theme.Spacing.sm)
-
-                    if shot.dialogueDirection?.hasSpokenLine == true, !shot.displayLine.isEmpty {
-                        Text("\u{201C}\(shot.displayLine)\u{201D}")
-                            .font(Theme.Typography.title.italic())
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
-                            .padding(.top, Theme.Spacing.sm)
-
-                        if let voiceCue = shot.dialogueDirection?.voiceCue, !voiceCue.isEmpty {
-                            Text("\u{25B8} \(voiceCue)")
+                            Text(shot.cameraPlacement)
                                 .font(Theme.Typography.caption)
-                                .foregroundStyle(.white.opacity(0.7))
-                                .lineLimit(2)
-                                .padding(.top, Theme.Spacing.xs)
+                                .foregroundStyle(.white.opacity(0.8))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, Theme.Spacing.sm)
+
+                            Text(shot.actorDirection)
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(.white.opacity(0.8))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, Theme.Spacing.sm)
+
+                            if shot.dialogueDirection?.hasSpokenLine == true, !shot.displayLine.isEmpty {
+                                Text("\u{201C}\(shot.displayLine)\u{201D}")
+                                    .font(Theme.Typography.title.italic())
+                                    .foregroundStyle(.white)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                                    .padding(.top, Theme.Spacing.sm)
+
+                                if let voiceCue = shot.dialogueDirection?.voiceCue, !voiceCue.isEmpty {
+                                    Text("\u{25B8} \(voiceCue)")
+                                        .font(Theme.Typography.caption)
+                                        .foregroundStyle(.white.opacity(0.7))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .padding(.top, Theme.Spacing.xs)
+                                }
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .scrollIndicators(.automatic)
+                    .frame(maxHeight: 260)
                 }
                 .padding(Theme.Spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
