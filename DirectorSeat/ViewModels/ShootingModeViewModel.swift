@@ -20,6 +20,7 @@ class ShootingModeViewModel: ObservableObject {
     @Published var countdownValue = 3
     @Published var capturedTakes: [Int: [URL]] = [:]
     @Published var selectedTakes: [Int: URL] = [:]
+    @Published var takeDurations: [URL: Double] = [:]
     @Published var allShotsComplete = false
     @Published var permissionGranted: Bool?
     @Published var recordingDuration: TimeInterval = 0
@@ -50,6 +51,21 @@ class ShootingModeViewModel: ObservableObject {
             self.capturedTakes = project.capturedTakes
             self.selectedTakes = project.selectedTakes
             self.currentShotIndex = project.currentShotIndex
+        }
+
+        // Hydrate recorded durations for any takes that were restored from disk.
+        // Durations aren't persisted on FilmProject — they live in memory and
+        // ShotReviewView falls back to a lazy load if the map is empty.
+        let urlsToHydrate = self.capturedTakes.values.flatMap { $0 }
+        if !urlsToHydrate.isEmpty {
+            Task { [weak self] in
+                for url in urlsToHydrate {
+                    let asset = AVURLAsset(url: url)
+                    if let d = try? await asset.load(.duration), d.seconds.isFinite, d.seconds > 0 {
+                        self?.takeDurations[url] = d.seconds
+                    }
+                }
+            }
         }
 
         cameraService.onRecordingFinished = { [weak self] result in
@@ -184,6 +200,15 @@ class ShootingModeViewModel: ObservableObject {
 
         project?.capturedTakes = capturedTakes
         saveProject()
+
+        // Capture the actual recorded duration so the Shot Review screen can
+        // display real take length instead of the plan's estimate.
+        Task { [weak self] in
+            let asset = AVURLAsset(url: url)
+            if let d = try? await asset.load(.duration), d.seconds.isFinite, d.seconds > 0 {
+                self?.takeDurations[url] = d.seconds
+            }
+        }
     }
 
     private func saveProject() {

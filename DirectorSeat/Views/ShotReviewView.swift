@@ -7,6 +7,7 @@ struct ShotReviewView: View {
     let plan: FilmmakingPlan
     @State var capturedTakes: [Int: [URL]]
     @State var selectedTakes: [Int: URL]
+    @State var takeDurations: [URL: Double] = [:]
     var project: FilmProject?
     @Environment(\.dismiss) private var dismiss
     @StateObject private var postState = PostProductionState()
@@ -27,7 +28,20 @@ struct ShotReviewView: View {
     }
 
     private var totalRuntimeSeconds: Int {
-        (0..<allShots.count).compactMap { selectedTakes[$0] != nil ? allShots[$0].estimatedDurationSeconds : nil }.reduce(0, +)
+        (0..<allShots.count).compactMap { idx in
+            guard selectedTakes[idx] != nil else { return nil }
+            return displaySeconds(forShotIndex: idx) ?? allShots[idx].estimatedDurationSeconds
+        }.reduce(0, +)
+    }
+
+    /// Returns the actual recorded duration of the take we'd display for this
+    /// shot (selected take, falling back to first captured take), or nil if no
+    /// take exists or its duration hasn't been loaded yet.
+    private func displaySeconds(forShotIndex index: Int) -> Int? {
+        guard let url = selectedTakes[index] ?? capturedTakes[index]?.first,
+              let seconds = takeDurations[url]
+        else { return nil }
+        return Int(seconds.rounded())
     }
 
     var body: some View {
@@ -103,6 +117,7 @@ struct ShotReviewView: View {
         }
         .task {
             await loadThumbnails()
+            await loadMissingDurations()
         }
     }
 
@@ -138,7 +153,7 @@ struct ShotReviewView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .tracking(1)
 
-                Text(formattedDuration(shot.estimatedDurationSeconds))
+                Text(formattedDuration(displaySeconds(forShotIndex: index) ?? shot.estimatedDurationSeconds))
                     .font(Theme.Typography.body.bold())
                     .foregroundStyle(Theme.Colors.textPrimary)
 
@@ -206,6 +221,20 @@ struct ShotReviewView: View {
                 if let image = await VideoUtilities.extractFirstFrame(from: url) {
                     thumbnails[index] = image
                 }
+            }
+        }
+    }
+
+    /// Fallback path: when ShotReviewView is constructed without a populated
+    /// takeDurations map (e.g. restored from FilmProject in HomeView), load
+    /// any missing durations from disk so the cards show real take length.
+    private func loadMissingDurations() async {
+        for index in 0..<allShots.count {
+            guard let url = selectedTakes[index] ?? capturedTakes[index]?.first,
+                  takeDurations[url] == nil else { continue }
+            let asset = AVURLAsset(url: url)
+            if let d = try? await asset.load(.duration), d.seconds.isFinite, d.seconds > 0 {
+                takeDurations[url] = d.seconds
             }
         }
     }

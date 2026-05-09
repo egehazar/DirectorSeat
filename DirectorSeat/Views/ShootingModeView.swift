@@ -43,6 +43,7 @@ struct ShootingModeView: View {
                 plan: viewModel.plan,
                 capturedTakes: viewModel.capturedTakes,
                 selectedTakes: viewModel.selectedTakes,
+                takeDurations: viewModel.takeDurations,
                 project: project
             )
         }
