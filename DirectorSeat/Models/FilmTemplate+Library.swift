@@ -414,7 +414,14 @@ extension FilmTemplate {
                             shotNumber: 3,
                             shotType: "medium",
                             beatPurpose: "The kind act — quiet, specific, unheroic",
-                            placeholderDirection: "[CHARACTER A] steps toward [CHARACTER B] and does [THE KIND THING]. No announcement, no performance. Just a hand that helps, or a word that acknowledges, or a gesture that says 'I see you and this is fixable.'"
+                            placeholderDirection: "[CHARACTER A] steps toward [CHARACTER B] and does [THE KIND THING]. No announcement, no performance. Just a hand that helps, or a word that acknowledges, or a gesture that says 'I see you and this is fixable.'",
+                            dialogueIntent: TemplateDialogueIntent(
+                                hasSpokenLine: true,
+                                speaker: "[CHARACTER A]",
+                                beatPurpose: "If the kindness is verbal (reading something aloud, giving information, naming what's needed), this is the line that does the work. If the kindness is purely physical (carrying a bag, opening a door, offering a seat), this shot is silent — leave dialogueIntent's draft_line empty in the generated plan and set has_spoken_line to false on the resulting dialogue_direction.",
+                                voiceCue: "Practical, unheroic, the tone of someone reading a grocery list or stating a fact — not warm, not performative. The kindness is in the doing, not the saying.",
+                                draftHint: "Either no line at all (set has_spoken_line: false on the generated dialogue_direction), OR a single short factual line that delivers the help — reading information aloud, giving directions, telling time, naming what's needed. Default to silent unless the user's idea makes the kindness inherently verbal."
+                            )
                         ),
                         TemplateShot(
                             shotNumber: 4,
