@@ -44,7 +44,11 @@ struct ShootingModeView: View {
                 capturedTakes: viewModel.capturedTakes,
                 selectedTakes: viewModel.selectedTakes,
                 takeDurations: viewModel.takeDurations,
-                project: project
+                project: project,
+                onReshoot: { shotIndex in
+                    viewModel.reshoot(shotIndex: shotIndex)
+                    showShotReview = false
+                }
             )
         }
         .onChange(of: viewModel.allShotsComplete) { _, complete in

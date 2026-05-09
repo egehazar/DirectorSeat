@@ -9,6 +9,10 @@ struct ShotReviewView: View {
     @State var selectedTakes: [Int: URL]
     @State var takeDurations: [URL: Double] = [:]
     var project: FilmProject?
+    /// Callback invoked when the user taps "Re-shoot This Shot" inside a
+    /// ShotDetailSheet. The 0-indexed shot index is passed up so the parent
+    /// can clear the take, reset state, and route back to Shooting Mode.
+    var onReshoot: ((Int) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @StateObject private var postState = PostProductionState()
     @State private var selectedShotIndex: Int?
@@ -107,8 +111,10 @@ struct ShotReviewView: View {
                     set: { selectedTakes[index] = $0 }
                 ),
                 onReshoot: {
-                    // Placeholder — re-shooting requires returning to ShootingModeView
-                    print("Re-shoot shot \(index + 1)")
+                    // Forward to the parent's handler. The parent decides how to
+                    // route — either via ShootingModeViewModel (forward path) or
+                    // by mutating FilmProject directly (HomeView resume path).
+                    self.onReshoot?(index)
                 }
             )
         }

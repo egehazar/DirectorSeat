@@ -284,7 +284,31 @@ private struct ProjectResumeView: View {
                     plan: plan,
                     capturedTakes: project.capturedTakes,
                     selectedTakes: project.selectedTakes,
-                    project: project
+                    project: project,
+                    onReshoot: { shotIndex in
+                        // Path B: no ShootingModeViewModel in scope on the
+                        // resume route. Mutate FilmProject directly; the
+                        // surrounding switch on project.status (a SwiftData
+                        // @Model property) re-renders to ShootingModeView
+                        // automatically once status flips to "shooting".
+                        let urls = project.capturedTakes[shotIndex] ?? []
+                        for url in urls {
+                            do {
+                                try FileManager.default.removeItem(at: url)
+                            } catch {
+                                print("[DirectorSeat] Could not delete take file at \(url.path): \(error.localizedDescription)")
+                            }
+                        }
+                        var captured = project.capturedTakes
+                        var selected = project.selectedTakes
+                        captured.removeValue(forKey: shotIndex)
+                        selected.removeValue(forKey: shotIndex)
+                        project.capturedTakes = captured
+                        project.selectedTakes = selected
+                        project.currentShotIndex = shotIndex
+                        project.status = "shooting"
+                        try? project.modelContext?.save()
+                    }
                 )
             case "post":
                 PostProductionResumeWrapper(plan: plan, project: project)

@@ -159,6 +159,41 @@ class ShootingModeViewModel: ObservableObject {
         cameraService.stopSession()
     }
 
+    /// Discard all takes for the given shot, delete the underlying files, reset
+    /// the active shot back to it, and flip the project's status from
+    /// `reviewing` to `shooting` so the user lands back in capture mode.
+    /// shotIndex is 0-indexed, matching the keys of capturedTakes/selectedTakes.
+    func reshoot(shotIndex: Int) {
+        let urlsToDelete = capturedTakes[shotIndex] ?? []
+
+        // Clear in-memory state for this shot.
+        capturedTakes.removeValue(forKey: shotIndex)
+        selectedTakes.removeValue(forKey: shotIndex)
+        for url in urlsToDelete {
+            takeDurations.removeValue(forKey: url)
+        }
+
+        // Delete files from disk — non-fatal: log and continue if any fail.
+        for url in urlsToDelete {
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                print("[DirectorSeat] Could not delete take file at \(url.path): \(error.localizedDescription)")
+            }
+        }
+
+        // Reset shooting state to land on this shot.
+        currentShotIndex = shotIndex
+        allShotsComplete = false
+        recordingState = .idle
+
+        project?.capturedTakes = capturedTakes
+        project?.selectedTakes = selectedTakes
+        project?.currentShotIndex = shotIndex
+        project?.status = "shooting"
+        saveProject()
+    }
+
     private func beginActualRecording() {
         let takeIndex = (capturedTakes[currentShotIndex]?.count ?? 0) + 1
         let fileName = "shot_\(currentShotIndex + 1)_take_\(takeIndex)_\(UUID().uuidString).mov"
