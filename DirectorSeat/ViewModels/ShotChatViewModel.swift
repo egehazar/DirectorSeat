@@ -68,10 +68,12 @@ class ShotChatViewModel: ObservableObject {
                     pendingRevision = revision
                 }
             } catch {
+                // error.localizedDescription is now the specific APIError reason
+                // (timeout / network / rate limit / etc.) thanks to APIErrorMapper.
                 let errorMsg = ConversationMessage(
                     id: UUID(),
                     role: .assistant,
-                    content: "Something went wrong: \(error.localizedDescription) You can try sending your message again.",
+                    content: "\(error.localizedDescription). You can try sending your message again.",
                     timestamp: Date(),
                     proposedRevision: nil
                 )

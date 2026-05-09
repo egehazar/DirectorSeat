@@ -1,37 +1,5 @@
 import Foundation
 
-enum PlanGenerationError: Error, LocalizedError {
-    case apiKeyNotConfigured
-    case networkUnreachable
-    case networkFailure(Error)
-    case unauthorized
-    case rateLimited
-    case nonSuccessResponse(Int, String)
-    case invalidJSON
-    case decodingFailure(Error)
-
-    var errorDescription: String? {
-        switch self {
-        case .apiKeyNotConfigured:
-            return "API key not configured. Please contact support."
-        case .networkUnreachable:
-            return "No internet connection. Please check your network and try again."
-        case .networkFailure:
-            return "Could not reach the server. Please try again."
-        case .unauthorized:
-            return "Invalid API key. Please contact support."
-        case .rateLimited:
-            return "Too many requests. Please wait a moment and try again."
-        case .nonSuccessResponse(let code, _):
-            return "Something went wrong (error \(code)). Please try again."
-        case .invalidJSON:
-            return "We got an unexpected response. Please try again."
-        case .decodingFailure:
-            return "We couldn't understand the response. Please try again."
-        }
-    }
-}
-
 class PlanGenerationService {
     private static let systemPrompt = """
         You are DirectorSeat, an AI filmmaking planner for beginners. Given a film idea, return a structured JSON filmmaking plan. Respond with ONLY valid JSON, no markdown fences, no commentary.
@@ -263,88 +231,28 @@ class PlanGenerationService {
         let text: String?
     }
 
-    func generate(idea: String, cast: CastChoice, context: String, language: String? = nil) async throws -> FilmmakingPlan {
+    func generate(
+        idea: String,
+        cast: CastChoice,
+        context: String,
+        language: String? = nil,
+        onRetryAttempt: ((Int) -> Void)? = nil
+    ) async throws -> FilmmakingPlan {
         let apiKey = Secrets.anthropicAPIKey
         guard !apiKey.isEmpty, apiKey != "REPLACE_ME" else {
-            throw PlanGenerationError.apiKeyNotConfigured
+            throw APIError.invalidAuth
         }
 
         let userMessage = buildUserMessage(idea: idea, cast: cast, context: context, language: language)
+        let request = makeRequest(
+            apiKey: apiKey,
+            systemPrompt: Self.systemPrompt,
+            userMessage: userMessage,
+            maxTokens: 4096
+        )
 
-        let url = URL(string: "https://api.anthropic.com/v1/messages")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-
-        let body: [String: Any] = [
-            "model": "claude-opus-4-6",
-            "max_tokens": 4096,
-            "system": Self.systemPrompt,
-            "messages": [
-                ["role": "user", "content": userMessage]
-            ]
-        ]
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .networkConnectionLost {
-            throw PlanGenerationError.networkUnreachable
-        } catch {
-            throw PlanGenerationError.networkFailure(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw PlanGenerationError.invalidJSON
-        }
-
-        switch httpResponse.statusCode {
-        case 200:
-            break
-        case 401:
-            throw PlanGenerationError.unauthorized
-        case 429:
-            throw PlanGenerationError.rateLimited
-        default:
-            let responseBody = String(data: data, encoding: .utf8) ?? ""
-            throw PlanGenerationError.nonSuccessResponse(httpResponse.statusCode, responseBody)
-        }
-
-        let apiResponse: APIResponse
-        do {
-            apiResponse = try JSONDecoder().decode(APIResponse.self, from: data)
-        } catch {
-            throw PlanGenerationError.invalidJSON
-        }
-
-        guard let text = apiResponse.content.first(where: { $0.type == "text" })?.text else {
-            throw PlanGenerationError.invalidJSON
-        }
-
-        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasPrefix("```json") {
-            cleaned = String(cleaned.dropFirst(7))
-        } else if cleaned.hasPrefix("```") {
-            cleaned = String(cleaned.dropFirst(3))
-        }
-        if cleaned.hasSuffix("```") {
-            cleaned = String(cleaned.dropLast(3))
-        }
-        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let jsonData = cleaned.data(using: .utf8) else {
-            throw PlanGenerationError.invalidJSON
-        }
-
-        do {
-            return try JSONDecoder().decode(FilmmakingPlan.self, from: jsonData)
-        } catch {
-            throw PlanGenerationError.decodingFailure(error)
+        return try await APIRetry.run(maxAttempts: 3, onAttempt: onRetryAttempt) {
+            try await self.executePlanRequest(request)
         }
     }
 
@@ -367,65 +275,91 @@ class PlanGenerationService {
 
     // MARK: - Template-Based Generation
 
-    func generateFromTemplate(template: FilmTemplate, customization: String, cast: CastChoice) async throws -> FilmmakingPlan {
+    func generateFromTemplate(
+        template: FilmTemplate,
+        customization: String,
+        cast: CastChoice,
+        onRetryAttempt: ((Int) -> Void)? = nil
+    ) async throws -> FilmmakingPlan {
         let apiKey = Secrets.anthropicAPIKey
         guard !apiKey.isEmpty, apiKey != "REPLACE_ME" else {
-            throw PlanGenerationError.apiKeyNotConfigured
+            throw APIError.invalidAuth
         }
 
         let templateSystemPrompt = buildTemplateSystemPrompt(template: template)
         let userMessage = buildUserMessage(idea: customization, cast: cast, context: "")
+        let request = makeRequest(
+            apiKey: apiKey,
+            systemPrompt: templateSystemPrompt,
+            userMessage: userMessage,
+            maxTokens: 4096
+        )
 
+        return try await APIRetry.run(maxAttempts: 3, onAttempt: onRetryAttempt) {
+            try await self.executePlanRequest(request)
+        }
+    }
+
+    // MARK: - Internal request helpers
+
+    /// Builds the standard Anthropic /v1/messages request with our auth headers,
+    /// JSON body, and a 90s timeout (above the legacy 60s default to handle
+    /// long generations on cellular).
+    private func makeRequest(
+        apiKey: String,
+        systemPrompt: String,
+        userMessage: String,
+        maxTokens: Int
+    ) -> URLRequest {
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 90
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
 
         let body: [String: Any] = [
             "model": "claude-opus-4-6",
-            "max_tokens": 4096,
-            "system": templateSystemPrompt,
+            "max_tokens": maxTokens,
+            "system": systemPrompt,
             "messages": [
                 ["role": "user", "content": userMessage],
             ],
         ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return request
+    }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
+    /// One attempt of the network call + JSON parse. Throws APIError on failure.
+    /// Wrapped by APIRetry so retryable errors trigger a backoff retry.
+    private func executePlanRequest(_ request: URLRequest) async throws -> FilmmakingPlan {
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await URLSession.shared.data(for: request)
-        } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .networkConnectionLost {
-            throw PlanGenerationError.networkUnreachable
+        } catch let api as APIError {
+            throw api
         } catch {
-            throw PlanGenerationError.networkFailure(error)
+            throw APIErrorMapper.from(error)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw PlanGenerationError.invalidJSON
+            throw APIError.malformedResponse("Not an HTTP response")
         }
-
-        switch httpResponse.statusCode {
-        case 200: break
-        case 401: throw PlanGenerationError.unauthorized
-        case 429: throw PlanGenerationError.rateLimited
-        default:
-            let responseBody = String(data: data, encoding: .utf8) ?? ""
-            throw PlanGenerationError.nonSuccessResponse(httpResponse.statusCode, responseBody)
+        if let apiError = APIErrorMapper.fromResponse(httpResponse, data: data) {
+            throw apiError
         }
 
         let apiResponse: APIResponse
         do {
             apiResponse = try JSONDecoder().decode(APIResponse.self, from: data)
         } catch {
-            throw PlanGenerationError.invalidJSON
+            throw APIError.malformedResponse("Could not decode envelope: \(error.localizedDescription)")
         }
 
         guard let text = apiResponse.content.first(where: { $0.type == "text" })?.text else {
-            throw PlanGenerationError.invalidJSON
+            throw APIError.malformedResponse("Response had no text block")
         }
 
         var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -435,13 +369,13 @@ class PlanGenerationService {
         cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let jsonData = cleaned.data(using: .utf8) else {
-            throw PlanGenerationError.invalidJSON
+            throw APIError.malformedResponse("Plan text was not valid UTF-8")
         }
 
         do {
             return try JSONDecoder().decode(FilmmakingPlan.self, from: jsonData)
         } catch {
-            throw PlanGenerationError.decodingFailure(error)
+            throw APIError.decodingFailed(error.localizedDescription)
         }
     }
 

@@ -29,7 +29,7 @@ struct PlanGenerationLoadingView: View {
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { isPulsing = true }
-        .alert("Something went wrong", isPresented: $viewModel.showError) {
+        .alert("Plan generation failed", isPresented: $viewModel.showError) {
             Button("Try Again") {
                 Task { await viewModel.retry() }
             }

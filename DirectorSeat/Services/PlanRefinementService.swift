@@ -1,29 +1,5 @@
 import Foundation
 
-enum RefinementError: Error, LocalizedError {
-    case apiKeyNotConfigured
-    case networkUnreachable
-    case networkFailure(Error)
-    case unauthorized
-    case rateLimited
-    case nonSuccessResponse(Int, String)
-    case invalidJSON
-    case decodingFailure(Error)
-
-    var errorDescription: String? {
-        switch self {
-        case .apiKeyNotConfigured: "API key not configured."
-        case .networkUnreachable: "No internet connection. Check your network and try again."
-        case .networkFailure: "Could not reach the server. Try again."
-        case .unauthorized: "Invalid API key."
-        case .rateLimited: "Too many requests. Wait a moment and try again."
-        case .nonSuccessResponse(let code, _): "Something went wrong (error \(code)). Try again."
-        case .invalidJSON: "Got an unexpected response. Try again."
-        case .decodingFailure: "Couldn't understand the response. Try again."
-        }
-    }
-}
-
 class PlanRefinementService {
 
     private struct APIResponse: Decodable {
@@ -46,11 +22,12 @@ class PlanRefinementService {
         plan: FilmmakingPlan,
         targetShotNumber: Int,
         conversationHistory: [ConversationMessage],
-        userMessage: String
+        userMessage: String,
+        onRetryAttempt: ((Int) -> Void)? = nil
     ) async throws -> ConversationMessage {
         let apiKey = Secrets.anthropicAPIKey
         guard !apiKey.isEmpty, apiKey != "REPLACE_ME" else {
-            throw RefinementError.apiKeyNotConfigured
+            throw APIError.invalidAuth
         }
 
         let systemPrompt = buildSystemPrompt(plan: plan, targetShotNumber: targetShotNumber)
@@ -59,6 +36,7 @@ class PlanRefinementService {
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 90
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -73,41 +51,42 @@ class PlanRefinementService {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+        return try await APIRetry.run(maxAttempts: 3, onAttempt: onRetryAttempt) {
+            try await self.executeRefinementRequest(request)
+        }
+    }
+
+    /// One attempt of the refinement network call + JSON parse. Throws APIError
+    /// on failure. Wrapped by APIRetry so retryable errors trigger a backoff.
+    private func executeRefinementRequest(_ request: URLRequest) async throws -> ConversationMessage {
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await URLSession.shared.data(for: request)
-        } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .networkConnectionLost {
-            throw RefinementError.networkUnreachable
+        } catch let api as APIError {
+            throw api
         } catch {
-            throw RefinementError.networkFailure(error)
+            throw APIErrorMapper.from(error)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw RefinementError.invalidJSON
+            throw APIError.malformedResponse("Not an HTTP response")
         }
-
-        switch httpResponse.statusCode {
-        case 200: break
-        case 401: throw RefinementError.unauthorized
-        case 429: throw RefinementError.rateLimited
-        default:
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw RefinementError.nonSuccessResponse(httpResponse.statusCode, body)
+        if let apiError = APIErrorMapper.fromResponse(httpResponse, data: data) {
+            throw apiError
         }
 
         let apiResponse: APIResponse
         do {
             apiResponse = try JSONDecoder().decode(APIResponse.self, from: data)
         } catch {
-            throw RefinementError.invalidJSON
+            throw APIError.malformedResponse("Could not decode envelope: \(error.localizedDescription)")
         }
 
         guard let text = apiResponse.content.first(where: { $0.type == "text" })?.text else {
-            throw RefinementError.invalidJSON
+            throw APIError.malformedResponse("Response had no text block")
         }
 
-        // Strip markdown fences if present
         var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.hasPrefix("```json") { cleaned = String(cleaned.dropFirst(7)) }
         else if cleaned.hasPrefix("```") { cleaned = String(cleaned.dropFirst(3)) }
@@ -115,14 +94,14 @@ class PlanRefinementService {
         cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let jsonData = cleaned.data(using: .utf8) else {
-            throw RefinementError.invalidJSON
+            throw APIError.malformedResponse("Refinement text was not valid UTF-8")
         }
 
         let refinement: RefinementResponse
         do {
             refinement = try JSONDecoder().decode(RefinementResponse.self, from: jsonData)
         } catch {
-            throw RefinementError.decodingFailure(error)
+            throw APIError.decodingFailed(error.localizedDescription)
         }
 
         return ConversationMessage(
