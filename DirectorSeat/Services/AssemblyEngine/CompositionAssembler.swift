@@ -39,8 +39,15 @@ struct CompositionAssembler {
         // ---- Insert source video + audio for each segment
 
         var firstRenderSize: CGSize?
+        // Per-segment source transform — needed for layer instructions below.
+        // When a videoComposition is set on the export session, AVFoundation
+        // does NOT auto-apply the track's preferredTransform; the rotation
+        // must be set explicitly via AVMutableVideoCompositionLayerInstruction.
+        // setTransform(_:at:). Setting `track.preferredTransform` alone is a
+        // no-op in this code path.
+        var segmentTransforms: [Int: CGAffineTransform] = [:]
 
-        for segment in timeline.segments {
+        for (segmentIndex, segment) in timeline.segments.enumerated() {
             let asset = AVURLAsset(url: segment.sourceURL)
 
             guard let assetVideoTrack = try await asset.loadTracks(withMediaType: .video).first else {
@@ -59,6 +66,8 @@ struct CompositionAssembler {
                 firstRenderSize = renderSize
             }
 
+            segmentTransforms[segmentIndex] = preferredTransform
+
             let track = videoTracks[segment.trackIndex]!
 
             try track.insertTimeRange(
@@ -66,9 +75,6 @@ struct CompositionAssembler {
                 of: assetVideoTrack,
                 at: segment.timelineTimeRange.start
             )
-
-            // Carry through the transform so a portrait take stays portrait in render.
-            track.preferredTransform = preferredTransform
 
             if let assetAudioTrack = try? await asset.loadTracks(withMediaType: .audio).first {
                 if sourceAudioTrack == nil {
@@ -117,7 +123,8 @@ struct CompositionAssembler {
         videoComposition.renderSize = renderSize
         videoComposition.instructions = buildVideoInstructions(
             timeline: timeline,
-            videoTracks: videoTracks
+            videoTracks: videoTracks,
+            segmentTransforms: segmentTransforms
         )
 
         // ---- Build audio mix
@@ -139,7 +146,8 @@ struct CompositionAssembler {
 
     private func buildVideoInstructions(
         timeline: EditorialTimeline,
-        videoTracks: [Int: AVMutableCompositionTrack]
+        videoTracks: [Int: AVMutableCompositionTrack],
+        segmentTransforms: [Int: CGAffineTransform]
     ) -> [AVMutableVideoCompositionInstruction] {
 
         guard !timeline.segments.isEmpty else { return [] }
@@ -160,6 +168,14 @@ struct CompositionAssembler {
         let sortedTimes = times.sorted()
         var instructions: [AVMutableVideoCompositionInstruction] = []
 
+        // Map track index -> segment indices on that track, in time order. Used
+        // to find the active segment for a given track during a stable interval
+        // so we can apply that segment's source transform on the layer.
+        var segmentsByTrack: [Int: [Int]] = [:]
+        for (segIdx, seg) in timeline.segments.enumerated() {
+            segmentsByTrack[seg.trackIndex, default: []].append(segIdx)
+        }
+
         for i in 0..<(sortedTimes.count - 1) {
             let t1 = sortedTimes[i]
             let t2 = sortedTimes[i + 1]
@@ -174,14 +190,19 @@ struct CompositionAssembler {
                 instruction.layerInstructions = layerInstructions(
                     forTransition: transition,
                     timeline: timeline,
-                    videoTracks: videoTracks
+                    videoTracks: videoTracks,
+                    segmentTransforms: segmentTransforms
                 )
             } else {
                 // Stable interval: find the active segment(s).
-                let activeSegments = timeline.segments.filter { $0.timelineTimeRange.contains(interval) }
+                let activeSegmentIndices = timeline.segments.enumerated()
+                    .filter { $0.element.timelineTimeRange.contains(interval) }
+                    .map { $0.offset }
                 instruction.layerInstructions = layerInstructions(
-                    forStableSegments: activeSegments,
-                    videoTracks: videoTracks
+                    forStableSegmentIndices: activeSegmentIndices,
+                    timeline: timeline,
+                    videoTracks: videoTracks,
+                    segmentTransforms: segmentTransforms
                 )
             }
             instructions.append(instruction)
@@ -190,14 +211,26 @@ struct CompositionAssembler {
     }
 
     private func layerInstructions(
-        forStableSegments segments: [TimelineSegment],
-        videoTracks: [Int: AVMutableCompositionTrack]
+        forStableSegmentIndices segmentIndices: [Int],
+        timeline: EditorialTimeline,
+        videoTracks: [Int: AVMutableCompositionTrack],
+        segmentTransforms: [Int: CGAffineTransform]
     ) -> [AVVideoCompositionLayerInstruction] {
-        let activeIndices = Set(segments.map { $0.trackIndex })
-        return videoTracks.keys.sorted().map { idx in
-            let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[idx]!)
-            let opacity: Float = activeIndices.contains(idx) ? 1.0 : 0.0
-            layer.setOpacity(opacity, at: .zero)
+
+        let activeByTrack: [Int: Int] = segmentIndices.reduce(into: [:]) { result, segIdx in
+            result[timeline.segments[segIdx].trackIndex] = segIdx
+        }
+
+        return videoTracks.keys.sorted().map { trackIdx in
+            let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[trackIdx]!)
+            if let activeSeg = activeByTrack[trackIdx] {
+                layer.setOpacity(1.0, at: .zero)
+                if let transform = segmentTransforms[activeSeg] {
+                    layer.setTransform(transform, at: .zero)
+                }
+            } else {
+                layer.setOpacity(0.0, at: .zero)
+            }
             return layer
         }
     }
@@ -205,40 +238,46 @@ struct CompositionAssembler {
     private func layerInstructions(
         forTransition transition: TimelineTransition,
         timeline: EditorialTimeline,
-        videoTracks: [Int: AVMutableCompositionTrack]
+        videoTracks: [Int: AVMutableCompositionTrack],
+        segmentTransforms: [Int: CGAffineTransform]
     ) -> [AVVideoCompositionLayerInstruction] {
 
         var rampedTrackIndices = Set<Int>()
         var rampedLayers: [AVVideoCompositionLayerInstruction] = []
 
+        func makeLayer(forSegmentIndex segIdx: Int) -> (track: Int, layer: AVMutableVideoCompositionLayerInstruction) {
+            let trackIdx = timeline.segments[segIdx].trackIndex
+            let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[trackIdx]!)
+            if let transform = segmentTransforms[segIdx] {
+                layer.setTransform(transform, at: .zero)
+            }
+            return (trackIdx, layer)
+        }
+
         switch transition.kind {
         case .crossfade:
             if let outgoing = transition.outgoingSegmentIndex {
-                let trackIdx = timeline.segments[outgoing].trackIndex
-                let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[trackIdx]!)
+                let (trackIdx, layer) = makeLayer(forSegmentIndex: outgoing)
                 layer.setOpacityRamp(fromStartOpacity: 1.0, toEndOpacity: 0.0, timeRange: transition.timeRange)
                 rampedLayers.append(layer)
                 rampedTrackIndices.insert(trackIdx)
             }
             if let incoming = transition.incomingSegmentIndex {
-                let trackIdx = timeline.segments[incoming].trackIndex
-                let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[trackIdx]!)
+                let (trackIdx, layer) = makeLayer(forSegmentIndex: incoming)
                 layer.setOpacityRamp(fromStartOpacity: 0.0, toEndOpacity: 1.0, timeRange: transition.timeRange)
                 rampedLayers.append(layer)
                 rampedTrackIndices.insert(trackIdx)
             }
         case .fadeFromBlack:
             if let incoming = transition.incomingSegmentIndex {
-                let trackIdx = timeline.segments[incoming].trackIndex
-                let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[trackIdx]!)
+                let (trackIdx, layer) = makeLayer(forSegmentIndex: incoming)
                 layer.setOpacityRamp(fromStartOpacity: 0.0, toEndOpacity: 1.0, timeRange: transition.timeRange)
                 rampedLayers.append(layer)
                 rampedTrackIndices.insert(trackIdx)
             }
         case .fadeToBlack:
             if let outgoing = transition.outgoingSegmentIndex {
-                let trackIdx = timeline.segments[outgoing].trackIndex
-                let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTracks[trackIdx]!)
+                let (trackIdx, layer) = makeLayer(forSegmentIndex: outgoing)
                 layer.setOpacityRamp(fromStartOpacity: 1.0, toEndOpacity: 0.0, timeRange: transition.timeRange)
                 rampedLayers.append(layer)
                 rampedTrackIndices.insert(trackIdx)

@@ -124,6 +124,54 @@ final class AssemblyEngineIntegrationTests: XCTestCase {
                       "Direct export of engine composition failed.")
     }
 
+    /// Regression test for the rotation-metadata bug observed on real iPhone
+    /// hardware. Synthesizes 3 clips that mimic real iPhone portrait video:
+    /// raw sensor pixels at 1920×1080 plus a 90° rotation transform on the
+    /// AVAssetWriterInput (matches how iPhone records portrait). The engine
+    /// must produce an output sized at the post-transform extent (1080×1920)
+    /// and visibly oriented as portrait — which only works if layer
+    /// instructions explicitly call setTransform(_:at:). Setting
+    /// track.preferredTransform alone is silently ignored when an explicit
+    /// videoComposition is in use.
+    func testPortraitClipsWithRotationTransformProducePortraitOutput() async throws {
+        let clipDuration: Double = 2.0
+        let urls = try await makeRotatedPortraitClips(count: 3, durationSeconds: clipDuration)
+
+        let plan = makeFastTestStylePlan(holdSeconds: clipDuration)
+        let outputURL = workDir.appendingPathComponent("portrait_export.mov")
+
+        let engine = AssemblyEngine()
+        let result = try await engine.assembleFromOrderedURLs(
+            plan: plan,
+            takeURLs: urls,
+            musicURL: nil,
+            outputURL: outputURL,
+            progress: { _ in }
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.path))
+
+        let exported = AVURLAsset(url: outputURL)
+        let videoTracks = try await exported.loadTracks(withMediaType: .video)
+        XCTAssertEqual(videoTracks.count, 1, "Engine should produce a single flattened video track")
+
+        guard let outputTrack = videoTracks.first else {
+            XCTFail("No output video track"); return
+        }
+        let outputNaturalSize = try await outputTrack.load(.naturalSize)
+        // After the engine bakes the rotation, the output's natural size must
+        // be portrait (1080×1920) — not the source's sensor 1920×1080. If the
+        // rotation wasn't applied, naturalSize would be 1920×1080 and the
+        // visible film would be sideways.
+        XCTAssertEqual(Int(outputNaturalSize.width), 1080,
+                       "Output width should match post-transform portrait width (1080)")
+        XCTAssertEqual(Int(outputNaturalSize.height), 1920,
+                       "Output height should match post-transform portrait height (1920)")
+
+        let duration = try await exported.load(.duration)
+        XCTAssertEqual(duration.seconds, 6.0, accuracy: 0.10)
+    }
+
     /// Three-shot all-cuts assembly via the engine — same shape as the X-button
     /// fast-test path. Uses 2-second clips per shot so the export finishes quickly.
     func testThreeShotAllCutsAssemblyProducesPlayableFile() async throws {
@@ -302,11 +350,42 @@ final class AssemblyEngineIntegrationTests: XCTestCase {
         return urls
     }
 
+    /// Generates clips that mimic real iPhone portrait video: raw 1920×1080
+    /// sensor pixels with a 90° rotation transform on the writer input. After
+    /// AVAssetWriter bakes the file, AVURLAsset reports naturalSize (1920,1080)
+    /// and preferredTransform as a 90° rotation — exactly the shape the engine
+    /// must handle correctly.
+    private func makeRotatedPortraitClips(count: Int, durationSeconds: Double) async throws -> [URL] {
+        var urls: [URL] = []
+        let baseColors: [(r: UInt8, g: UInt8, b: UInt8)] = [
+            (180, 60, 60),
+            (60, 130, 80),
+            (60, 80, 160),
+        ]
+        // 90° clockwise rotation — what iPhone uses for portrait video on
+        // a sensor that's natively landscape.
+        let rotation = CGAffineTransform(rotationAngle: .pi / 2)
+        for i in 0..<count {
+            let url = workDir.appendingPathComponent("portrait_clip_\(i).mov")
+            let color = baseColors[i % baseColors.count]
+            try await writeSolidColorVideo(
+                to: url,
+                durationSeconds: durationSeconds,
+                size: CGSize(width: 1920, height: 1080),
+                rgb: color,
+                preferredTransform: rotation
+            )
+            urls.append(url)
+        }
+        return urls
+    }
+
     private func writeSolidColorVideo(
         to url: URL,
         durationSeconds: Double,
         size: CGSize,
-        rgb: (r: UInt8, g: UInt8, b: UInt8)
+        rgb: (r: UInt8, g: UInt8, b: UInt8),
+        preferredTransform: CGAffineTransform = .identity
     ) async throws {
         try? FileManager.default.removeItem(at: url)
 
@@ -318,6 +397,7 @@ final class AssemblyEngineIntegrationTests: XCTestCase {
         ]
         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         videoInput.expectsMediaDataInRealTime = false
+        videoInput.transform = preferredTransform
 
         let pixelAttrs: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
