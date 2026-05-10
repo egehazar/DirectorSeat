@@ -7,7 +7,12 @@ struct ShotReviewView: View {
     let plan: FilmmakingPlan
     @State var capturedTakes: [Int: [URL]]
     @State var selectedTakes: [Int: URL]
-    @State var takeDurations: [URL: Double] = [:]
+    /// Recorded durations from the parent (`viewModel.takeDurations` on the
+    /// forward path, empty on the resume path). Kept as a regular `var` rather
+    /// than `@State` so the parent's @Published updates flow through —
+    /// otherwise a duration that loads after presentation gets stranded in
+    /// the parent and the per-card label keeps showing the plan estimate.
+    var takeDurations: [URL: Double] = [:]
     var project: FilmProject?
     /// Callback invoked when the user taps "Re-shoot This Shot" inside a
     /// ShotDetailSheet. The 0-indexed shot index is passed up so the parent
@@ -18,6 +23,10 @@ struct ShotReviewView: View {
     @State private var selectedShotIndex: Int?
     @State private var thumbnails: [Int: UIImage] = [:]
     @State private var showPostFlow = false
+    /// Lazily-loaded durations for cases where the parent didn't supply one
+    /// (HomeView resume path) or hadn't loaded one yet at presentation time.
+    /// Merged with `takeDurations` at display time, parent value wins.
+    @State private var locallyLoadedDurations: [URL: Double] = [:]
 
     private var allShots: [Shot] {
         plan.scenes.flatMap(\.shots)
@@ -40,12 +49,13 @@ struct ShotReviewView: View {
 
     /// Returns the actual recorded duration of the take we'd display for this
     /// shot (selected take, falling back to first captured take), or nil if no
-    /// take exists or its duration hasn't been loaded yet.
+    /// take exists or its duration hasn't been loaded yet. Prefers the
+    /// parent-supplied map; falls through to the locally-loaded backup.
     private func displaySeconds(forShotIndex index: Int) -> Int? {
-        guard let url = selectedTakes[index] ?? capturedTakes[index]?.first,
-              let seconds = takeDurations[url]
-        else { return nil }
-        return Int(seconds.rounded())
+        guard let url = selectedTakes[index] ?? capturedTakes[index]?.first else { return nil }
+        if let seconds = takeDurations[url] { return Int(seconds.rounded()) }
+        if let seconds = locallyLoadedDurations[url] { return Int(seconds.rounded()) }
+        return nil
     }
 
     var body: some View {
@@ -232,15 +242,19 @@ struct ShotReviewView: View {
     }
 
     /// Fallback path: when ShotReviewView is constructed without a populated
-    /// takeDurations map (e.g. restored from FilmProject in HomeView), load
-    /// any missing durations from disk so the cards show real take length.
+    /// takeDurations map (e.g. restored from FilmProject in HomeView), or
+    /// before the parent's async duration-load for the latest take has
+    /// completed, load any missing durations from disk so the cards show real
+    /// take length. Writes to `locallyLoadedDurations` so a later parent
+    /// update (which would land in `takeDurations`) takes precedence.
     private func loadMissingDurations() async {
         for index in 0..<allShots.count {
             guard let url = selectedTakes[index] ?? capturedTakes[index]?.first,
-                  takeDurations[url] == nil else { continue }
+                  takeDurations[url] == nil,
+                  locallyLoadedDurations[url] == nil else { continue }
             let asset = AVURLAsset(url: url)
             if let d = try? await asset.load(.duration), d.seconds.isFinite, d.seconds > 0 {
-                takeDurations[url] = d.seconds
+                locallyLoadedDurations[url] = d.seconds
             }
         }
     }
