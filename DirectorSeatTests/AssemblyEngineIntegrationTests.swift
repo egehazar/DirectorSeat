@@ -170,6 +170,50 @@ final class AssemblyEngineIntegrationTests: XCTestCase {
 
         let duration = try await exported.load(.duration)
         XCTAssertEqual(duration.seconds, 6.0, accuracy: 0.10)
+
+        // Sample a pixel near the right edge of the first frame. The first
+        // synthesized clip is a solid (180, 60, 60) red. If the rotation +
+        // translation are correct, content fills the canvas and we see the
+        // source colour. If the transform is misaligned (content rendered to
+        // negative x — Hypothesis B), this region would be unwritten / GPU
+        // garbage / black.
+        let generator = AVAssetImageGenerator(asset: exported)
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        generator.appliesPreferredTrackTransform = true
+        let firstFrame = try await generator.image(at: CMTime(seconds: 0.5, preferredTimescale: 600)).image
+
+        let sampleX = Int(outputNaturalSize.width) - 10
+        let sampleY = Int(outputNaturalSize.height) / 2
+        let (r, g, b) = try samplePixel(in: firstFrame, x: sampleX, y: sampleY)
+        XCTAssertGreaterThan(Int(r), 100, "Right edge should show source red content (~180), not GPU memory garbage. Got rgb=(\(r),\(g),\(b))")
+        XCTAssertLessThan(Int(g), 120, "Right edge should not be GPU memory noise. Got rgb=(\(r),\(g),\(b))")
+        XCTAssertLessThan(Int(b), 120, "Right edge should not be GPU memory noise. Got rgb=(\(r),\(g),\(b))")
+    }
+
+    /// Reads a single pixel from a CGImage. Returns (r, g, b) in 0…255.
+    private func samplePixel(in cgImage: CGImage, x: Int, y: Int) throws -> (UInt8, UInt8, UInt8) {
+        let width = 1
+        let height = 1
+        let bytesPerRow = 4
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let ctx = CGContext(
+            data: &pixel,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else {
+            throw NSError(domain: "AssemblyEngineIT", code: 6, userInfo: [NSLocalizedDescriptionKey: "could not create sampling context"])
+        }
+        // Translate so the source pixel at (x, y) lands at (0, 0) in the 1×1 output.
+        ctx.translateBy(x: -CGFloat(x), y: -CGFloat(cgImage.height - 1 - y))
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        return (pixel[0], pixel[1], pixel[2])
     }
 
     /// Three-shot all-cuts assembly via the engine — same shape as the X-button

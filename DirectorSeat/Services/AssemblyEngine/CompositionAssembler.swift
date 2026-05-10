@@ -66,7 +66,18 @@ struct CompositionAssembler {
                 firstRenderSize = renderSize
             }
 
-            segmentTransforms[segmentIndex] = preferredTransform
+            // Real iPhone preferredTransform usually includes the translation
+            // that places content into the (0, 0, postTransformWidth,
+            // postTransformHeight) canvas — but not always (e.g. clips made
+            // with `AVAssetWriterInput.transform = .rotate(.pi/2)` have no
+            // translation, leaving content at NEGATIVE x). Compute a corrective
+            // translation that aligns the post-transform bounding box to (0,0)
+            // and concatenate. Idempotent for already-correct transforms.
+            let sourceRect = CGRect(origin: .zero, size: naturalSize)
+            let bbox = sourceRect.applying(preferredTransform)
+            let corrective = CGAffineTransform(translationX: -bbox.origin.x, y: -bbox.origin.y)
+            let alignedTransform = preferredTransform.concatenating(corrective)
+            segmentTransforms[segmentIndex] = alignedTransform
 
             let track = videoTracks[segment.trackIndex]!
 
