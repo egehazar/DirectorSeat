@@ -9,6 +9,8 @@ struct PaywallView: View {
 
     @State private var isPurchasing: Bool = false
     @State private var purchaseError: String? = nil
+    @State private var lastSeenBalance: Int = 0
+    @State private var showCreditGrantedToast: Bool = false
 
     private static let productID = "com.tastefyapp.DirectorSeat.filmexport"
 
@@ -47,6 +49,17 @@ struct PaywallView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, Theme.Spacing.sm)
+
+            if showCreditGrantedToast {
+                Text("\u{2713} Credit added")
+                    .font(Theme.Typography.caption.bold())
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.vertical, 6)
+                    .background(Color.green.opacity(0.15), in: Capsule())
+                    .padding(.top, Theme.Spacing.sm)
+                    .transition(.opacity)
+            }
 
             if wallet.balance > 0 {
                 Text("\(wallet.balance) credit\(wallet.balance == 1 ? "" : "s") available")
@@ -100,6 +113,15 @@ struct PaywallView: View {
             }
             .padding(.bottom, Theme.Spacing.sm)
 
+            #if DEBUG
+            Button("[DEBUG] Reset credits") {
+                CreditWallet.shared._debugSetBalance(0)
+            }
+            .font(.caption2)
+            .foregroundStyle(.gray)
+            .padding(.bottom, Theme.Spacing.sm)
+            #endif
+
             Button { dismiss() } label: {
                 Text("Maybe later")
                     .font(Theme.Typography.caption)
@@ -109,6 +131,20 @@ struct PaywallView: View {
         }
         .background(Theme.Colors.background)
         .presentationDetents([.large])
+        .animation(.easeInOut(duration: 0.2), value: showCreditGrantedToast)
+        .onAppear {
+            lastSeenBalance = wallet.balance
+        }
+        .onChange(of: wallet.balance) { _, newValue in
+            if newValue > lastSeenBalance {
+                showCreditGrantedToast = true
+                Task {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    showCreditGrantedToast = false
+                }
+            }
+            lastSeenBalance = newValue
+        }
     }
 
     // MARK: - Cards
@@ -137,6 +173,28 @@ struct PaywallView: View {
 
             DSPrimaryButton(title: buyButtonTitle, action: handleBuy)
                 .disabled(isPurchasing || storeManager.availableProducts.isEmpty)
+
+            if storeManager.availableProducts.isEmpty {
+                if storeManager.isLoadingProducts {
+                    Text("Loading\u{2026}")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .frame(maxWidth: .infinity)
+                } else if storeManager.lastError != nil {
+                    Text("Couldn't load purchase options. Check your connection and tap below to retry.")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                    Button("Retry") {
+                        Task { await storeManager.loadProducts() }
+                    }
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.accent)
+                    .frame(maxWidth: .infinity)
+                }
+            }
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
