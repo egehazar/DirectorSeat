@@ -145,3 +145,25 @@ These are deferred to later sessions because they require infrastructure we have
 - Vision-based room/scene analysis with phone placement overlay
 
 If any of these come up during validation, note them as expected gaps, not failures.
+## Findings from May 9-10 hardware session
+
+### Critical
+- **AssemblyEngine produces broken film output on hardware** (overlapping watermarks, partial title cards, mostly black footage). Simulator integration tests passed; real device fails. V1.1 ships with `useAssemblyEngine = false`. Bug isolated to AssemblyEngine, not legacy path.
+
+### High priority for V1.1
+- **No way to redo assembly after export.** Project locks into "exported" state with no path back to Shot Review. Need a "Re-export" or "Reassemble" affordance.
+- **"Reshoot this shot" button does nothing.** Tap is registered but no state change occurs.
+- **Shot duration display incorrect.** Take cards show `estimatedDurationSeconds` from the plan instead of the actual recorded take's duration. A 5-second take displays as 10s if the plan said 10s.
+- **Generic "something went wrong" on network errors.** No retry, no specific error reason. Need: surface timeout vs auth vs rate limit, automatic retry with backoff, "this is taking longer than usual" warning at 30s.
+
+### Medium / cosmetic
+- **Direction text gets truncated in Shooting Mode** with "..." when text is too long. Need scrolling or smaller font fallback.
+
+### Things that work cleanly
+- Plan generation end-to-end ✅
+- Plan Preview rendering with Layer 2 dialogue UI ✅
+- Tap-to-edit dialogue, info sheet, "Talk to AI" bridge ✅
+- Conversational refinement with quick-prompt chips ✅
+- Three-alternatives flow → Accept/Reject revision card ✅
+- Persistence across navigation ✅
+- 14-template system producing craft-quality output ✅
