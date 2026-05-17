@@ -46,7 +46,8 @@ struct PaywallView: View {
                         .padding(.top, Theme.Spacing.xs)
 
                     DSPrimaryButton(title: "Export Clean \u{2014} $4.99") {
-                        exportState.purchaseClean()
+                        // TODO(prompt #2): wire to StoreManager.purchase(...) and
+                        // call exportState.proceedClean() on success.
                         dismiss()
                     }
                 }
@@ -93,8 +94,7 @@ struct PaywallView: View {
             Spacer()
 
             Button {
-                exportState.isPaid = true
-                exportState.includeWatermark = false
+                // TODO(prompt #2): wire to StoreManager.restorePurchases().
             } label: {
                 Text("Restore purchases")
                     .font(Theme.Typography.caption)

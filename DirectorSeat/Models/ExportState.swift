@@ -14,7 +14,6 @@ enum ExportPhase: Equatable {
 @MainActor
 class ExportState: ObservableObject {
     @Published var phase: ExportPhase = .idle
-    @Published var isPaid = false
     @Published var includeWatermark = true
     @Published var userChoseExport = false
 
@@ -24,15 +23,26 @@ class ExportState: ObservableObject {
     private var lastPostState: PostProductionState?
     private var lastProject: FilmProject?
 
+    /// True when the user has at least one film-export credit available.
+    /// Derived from the wallet — the app never tracks "did the user buy X?"
+    /// directly, only "does the user have credits to spend?"
+    var canExportClean: Bool {
+        CreditWallet.shared.hasCredit
+    }
+
     func proceedWithWatermark() {
         includeWatermark = true
         userChoseExport = true
     }
 
-    func purchaseClean() {
-        isPaid = true
+    /// Called when the user proceeds with a clean (no-watermark) export.
+    /// Consumes one credit from the wallet. Returns false if no credit
+    /// was available, in which case the caller should not start export.
+    func proceedClean() -> Bool {
+        guard CreditWallet.shared.consumeCredit() else { return false }
         includeWatermark = false
         userChoseExport = true
+        return true
     }
 
     func startRender(plan: FilmmakingPlan, assembledURL: URL, state: PostProductionState, project: FilmProject? = nil) {
