@@ -42,9 +42,13 @@ class VideoExportService {
         let renderSize = CGSize(width: abs(displayRect.width), height: abs(displayRect.height))
 
         let composition = AVMutableComposition()
-        guard let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
-              let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+        guard let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
         else { throw VideoExportError.assetLoadFailed }
+
+        // Audio track allocated lazily — an empty audio track causes export to
+        // fail on iOS 26 (MediaValidator err=-12783), so only create it once
+        // there is real audio to insert. Mirrors CompositionAssembler's approach.
+        var compAudioTrack: AVMutableCompositionTrack?
 
         var insertTime = CMTime.zero
 
@@ -68,7 +72,10 @@ class VideoExportService {
         // Main video (track already loaded above for the render-size derivation)
         try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: mainDuration), of: mainVideoTrack, at: insertTime)
         if let mainAudio = try? await mainAsset.loadTracks(withMediaType: .audio).first {
-            try? compAudioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: mainDuration), of: mainAudio, at: insertTime)
+            if compAudioTrack == nil {
+                compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+            }
+            try? compAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: mainDuration), of: mainAudio, at: insertTime)
         }
         let mainEndTime = CMTimeAdd(insertTime, mainDuration)
 
@@ -105,11 +112,17 @@ class VideoExportService {
                 try? compMusicTrack.insertTimeRange(CMTimeRange(start: .zero, duration: targetDuration), of: musicAudioTrack, at: .zero)
 
                 let mix = AVMutableAudioMix()
-                let originalParams = AVMutableAudioMixInputParameters(track: compAudioTrack)
-                originalParams.setVolume(Float(1.0 - state.musicVolume), at: .zero)
+                var inputParams: [AVMutableAudioMixInputParameters] = []
+                // Only duck the original audio if a source audio track exists.
+                if let compAudioTrack {
+                    let originalParams = AVMutableAudioMixInputParameters(track: compAudioTrack)
+                    originalParams.setVolume(Float(1.0 - state.musicVolume), at: .zero)
+                    inputParams.append(originalParams)
+                }
                 let musicParams = AVMutableAudioMixInputParameters(track: compMusicTrack)
                 musicParams.setVolume(Float(state.musicVolume), at: .zero)
-                mix.inputParameters = [originalParams, musicParams]
+                inputParams.append(musicParams)
+                mix.inputParameters = inputParams
                 audioMix = mix
             }
         }

@@ -237,6 +237,39 @@ final class RealFootageExportPipelineTests: XCTestCase {
                              "Right-edge pixel is black (\(rightEdge)) — content not filling the frame width.")
     }
 
+    // MARK: - Silent source (no audio track) must still export
+    //
+    // Regression guard for the iOS 26 empty-audio-track export rejection.
+    // Synthesized clips carry no audio, so VideoExportService must allocate its
+    // audio track lazily; with an empty audio track, export previously failed
+    // with exportFailed("Operation Stopped").
+
+    func testSilentSourceExportSucceedsAndIsPortrait() async throws {
+        let synthURLs = try await TestClipFactory.makeRotatedPortraitClips(
+            count: 3, durationSeconds: 2.0, in: workDir
+        )
+        let engineURL = workDir.appendingPathComponent("silent_engine.mov")
+        let engine = AssemblyEngine()
+        _ = try await engine.assembleFromOrderedURLs(
+            plan: makeThreeShotPlan(holdSeconds: 2.0),
+            takeURLs: synthURLs,
+            musicURL: nil,
+            outputURL: engineURL,
+            progress: { _ in }
+        )
+        // Must not throw — a silent source previously triggered
+        // exportFailed("Operation Stopped") from an empty audio track.
+        let exportURL = try await runExportService(
+            assembledURL: engineURL,
+            plan: makeThreeShotPlan(holdSeconds: 2.0)
+        )
+        let extent = try await postTransformExtent(of: exportURL)
+        XCTAssertEqual(Int(extent.width), 1080,
+                       "Silent-source export width should be 1080; got \(extent.width)x\(extent.height)")
+        XCTAssertEqual(Int(extent.height), 1920,
+                       "Silent-source export height should be 1920; got \(extent.width)x\(extent.height)")
+    }
+
     // MARK: - Helpers
 
     @MainActor
