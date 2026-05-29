@@ -29,6 +29,18 @@ class VideoExportService {
         let mainAsset = AVURLAsset(url: assembledURL)
         let mainDuration = try await mainAsset.load(.duration)
 
+        // Single source of truth for the export canvas: the assembled video's
+        // real displayed size = naturalSize after its preferredTransform.
+        // Orientation-agnostic — portrait in yields a portrait canvas, landscape
+        // in yields landscape. Never fall back to a hardcoded/landscape frame.
+        guard let mainVideoTrack = try await mainAsset.loadTracks(withMediaType: .video).first else {
+            throw VideoExportError.assetLoadFailed
+        }
+        let mainNaturalSize = try await mainVideoTrack.load(.naturalSize)
+        let mainPreferredTransform = try await mainVideoTrack.load(.preferredTransform)
+        let displayRect = CGRect(origin: .zero, size: mainNaturalSize).applying(mainPreferredTransform)
+        let renderSize = CGSize(width: abs(displayRect.width), height: abs(displayRect.height))
+
         let composition = AVMutableComposition()
         guard let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
               let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
@@ -41,7 +53,8 @@ class VideoExportService {
             if let titleURL = try? await createTitleCard(
                 text: state.filmTitle,
                 subtitle: nil,
-                duration: 2.0
+                duration: 2.0,
+                size: renderSize
             ) {
                 let titleAsset = AVURLAsset(url: titleURL)
                 let titleDuration = try await titleAsset.load(.duration)
@@ -52,10 +65,8 @@ class VideoExportService {
             }
         }
 
-        // Main video
-        if let mainVideo = try? await mainAsset.loadTracks(withMediaType: .video).first {
-            try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: mainDuration), of: mainVideo, at: insertTime)
-        }
+        // Main video (track already loaded above for the render-size derivation)
+        try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: mainDuration), of: mainVideoTrack, at: insertTime)
         if let mainAudio = try? await mainAsset.loadTracks(withMediaType: .audio).first {
             try? compAudioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: mainDuration), of: mainAudio, at: insertTime)
         }
@@ -66,7 +77,8 @@ class VideoExportService {
             if let endURL = try? await createTitleCard(
                 text: "Directed by \(state.directorName)",
                 subtitle: "Made with DirectorSeat",
-                duration: 2.0
+                duration: 2.0,
+                size: renderSize
             ) {
                 let endAsset = AVURLAsset(url: endURL)
                 let endDuration = try await endAsset.load(.duration)
@@ -104,7 +116,7 @@ class VideoExportService {
 
         // Color + watermark via CIFilter
         let needsFilter = state.colorPreset != .original || includeWatermark
-        var videoComposition: AVVideoComposition?
+        let videoComposition: AVMutableVideoComposition
 
         if needsFilter {
             let watermarkCIImage: CIImage? = includeWatermark ? renderWatermarkCIImage() : nil
@@ -140,7 +152,25 @@ class VideoExportService {
 
                 request.finish(with: final, context: nil)
             }
+        } else {
+            // No color/watermark pass, but still attach a pass-through video
+            // composition so the export canvas is set explicitly to the assembled
+            // video's size rather than inheriting the composition track's native
+            // (title-card-derived) dimensions.
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: composition.duration)
+            let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: compVideoTrack)
+            layer.setOpacity(1.0, at: .zero)
+            instruction.layerInstructions = [layer]
+            let passthrough = AVMutableVideoComposition()
+            passthrough.frameDuration = CMTime(value: 1, timescale: 30)
+            passthrough.instructions = [instruction]
+            videoComposition = passthrough
         }
+
+        // Canvas = the assembled video's real displayed size (single source of
+        // truth). Portrait in -> portrait out; landscape in -> landscape out.
+        videoComposition.renderSize = renderSize
 
         // Export
         let exportDir = outputDirectory ?? FileManager.default.temporaryDirectory
@@ -151,7 +181,7 @@ class VideoExportService {
 
         session.outputURL = outputURL
         session.outputFileType = .mp4
-        if let vc = videoComposition { session.videoComposition = vc }
+        session.videoComposition = videoComposition
         if let am = audioMix { session.audioMix = am }
 
         await session.export()
@@ -165,8 +195,7 @@ class VideoExportService {
 
     // MARK: - Title Card Generation
 
-    private func createTitleCard(text: String, subtitle: String?, duration: TimeInterval) async throws -> URL {
-        let size = CGSize(width: 1920, height: 1080)
+    private func createTitleCard(text: String, subtitle: String?, duration: TimeInterval, size: CGSize) async throws -> URL {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("titlecard_\(UUID().uuidString).mov")
 
