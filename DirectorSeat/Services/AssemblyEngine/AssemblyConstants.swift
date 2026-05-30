@@ -19,6 +19,13 @@ enum AssemblyConstants {
     // Default hold cap when shot.recommendedHoldSeconds is nil
     static let defaultMaxHoldSeconds: TimeInterval = 6.0
 
+    // Minimum on-screen duration for a coverage intercut segment. Rapid dialogue
+    // would otherwise produce sub-second cuts that strobe; slices below this floor
+    // are merged into a neighbour so no intercut segment is shorter than this
+    // (except a whole beat that is itself shorter than the floor). Tunable after
+    // first hardware audition.
+    static let minCoverageSegmentSeconds: TimeInterval = 1.2
+
     // Frame rate for video composition
     static let frameRate: Int32 = 30
 

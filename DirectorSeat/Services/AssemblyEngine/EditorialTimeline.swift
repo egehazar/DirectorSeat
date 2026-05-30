@@ -16,6 +16,11 @@ struct TimelineSegment: Equatable {
     let sourceTimeRange: CMTimeRange
     let timelineTimeRange: CMTimeRange
     let trackIndex: Int
+    /// Crop-zoom punch-in region (normalized 0...1 in the source's display space)
+    /// for coverage intercut segments. nil for linear and full-frame segments —
+    /// "render the take as-is." Phase 3 (CompositionAssembler) applies the crop;
+    /// Layer 1 only records it. Defaulted so existing call sites are unchanged.
+    var cropRect: NormalizedRect? = nil
 }
 
 struct TimelineTransition: Equatable {
