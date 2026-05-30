@@ -6,6 +6,13 @@ class CameraService: NSObject, AVCaptureFileOutputRecordingDelegate {
     let previewLayer: AVCaptureVideoPreviewLayer
     private var isConfigured = false
 
+    /// True only when the coverage-cutting flag is on AND this device/session can
+    /// actually record 4K (3840×2160). Crop-zoom coverage needs a 4K source so a
+    /// 2× digital punch-in stays at/above the 1080p delivery target. Stays false
+    /// otherwise (flag off, or device can't do 4K). Read-only to the rest of the
+    /// app so it can tell whether this device is crop-zoom-capable.
+    private(set) var supports4KCapture = false
+
     var onRecordingFinished: ((Result<URL, Error>) -> Void)?
 
     override init() {
@@ -47,6 +54,17 @@ class CameraService: NSObject, AVCaptureFileOutputRecordingDelegate {
                session.canAddInput(videoInput) {
                 session.addInput(videoInput)
                 hasVideo = true
+
+                // Phase 0 (intelligent cutting): opt into 4K capture ONLY when the
+                // coverage-cutting flag is on AND the active device/session can do
+                // it. canSetSessionPreset is evaluated after the input is added, so
+                // it reflects this session's real graph. If either is false the
+                // preset stays .high (1080p) and capture is byte-for-byte unchanged.
+                if FeatureFlags.useCoverageCutting,
+                   session.canSetSessionPreset(.hd4K3840x2160) {
+                    session.sessionPreset = .hd4K3840x2160
+                    supports4KCapture = true
+                }
             }
 
             if let mic = AVCaptureDevice.default(for: .audio),
