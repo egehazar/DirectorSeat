@@ -139,6 +139,13 @@ struct Shot: Codable, Identifiable {
     let audioTreatment: AudioTreatment?
     let editingNote: String?
 
+    // Adaptive-coverage metadata (intelligent-cutting epic). OPTIONAL and
+    // defaults to nil — load-bearing for backward compatibility: plans encoded
+    // before this field existed decode with coverage == nil, and a shot with
+    // coverage == nil is treated as linear (today's behavior). See
+    // docs/intelligent-cutting-spec.md. Nothing reads this yet (Phase 1).
+    let coverage: CoverageRole?
+
     enum CodingKeys: String, CodingKey {
         case shotNumber = "shot_number"
         case shotType = "shot_type"
@@ -155,6 +162,7 @@ struct Shot: Codable, Identifiable {
         case pacingRole = "pacing_role"
         case audioTreatment = "audio_treatment"
         case editingNote = "editing_note"
+        case coverage
     }
 
     // Legacy key for backward-compatible decoding of saved projects
@@ -167,7 +175,8 @@ struct Shot: Codable, Identifiable {
          estimatedDurationSeconds: Int, soloShootable: Bool, audioRisk: String,
          recommendedHoldSeconds: Double? = nil, transitionInType: TransitionType? = nil,
          transitionOutType: TransitionType? = nil, pacingRole: PacingRole? = nil,
-         audioTreatment: AudioTreatment? = nil, editingNote: String? = nil) {
+         audioTreatment: AudioTreatment? = nil, editingNote: String? = nil,
+         coverage: CoverageRole? = nil) {
         self.shotNumber = shotNumber
         self.shotType = shotType
         self.directionText = directionText
@@ -183,6 +192,7 @@ struct Shot: Codable, Identifiable {
         self.pacingRole = pacingRole
         self.audioTreatment = audioTreatment
         self.editingNote = editingNote
+        self.coverage = coverage
     }
 
     init(from decoder: Decoder) throws {
@@ -201,6 +211,8 @@ struct Shot: Codable, Identifiable {
         pacingRole = try container.decodeIfPresent(PacingRole.self, forKey: .pacingRole)
         audioTreatment = try container.decodeIfPresent(AudioTreatment.self, forKey: .audioTreatment)
         editingNote = try container.decodeIfPresent(String.self, forKey: .editingNote)
+        // Absent in plans encoded before coverage existed → nil → linear shot.
+        coverage = try container.decodeIfPresent(CoverageRole.self, forKey: .coverage)
 
         // New dialogue_direction field; fall back to legacy dialogue string for saved projects
         if let dd = try container.decodeIfPresent(DialogueDirection.self, forKey: .dialogueDirection) {
@@ -302,7 +314,8 @@ extension Shot {
             transitionOutType: transitionOutType,
             pacingRole: pacingRole,
             audioTreatment: audioTreatment,
-            editingNote: editingNote
+            editingNote: editingNote,
+            coverage: coverage
         )
     }
 
@@ -326,7 +339,8 @@ extension Shot {
             transitionOutType: transitionOutType,
             pacingRole: pacingRole,
             audioTreatment: audioTreatment,
-            editingNote: editingNote
+            editingNote: editingNote,
+            coverage: coverage
         )
     }
 }
