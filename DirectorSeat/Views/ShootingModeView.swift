@@ -10,6 +10,7 @@ struct ShootingModeView: View {
     @State private var showInfoSheet = false
     @State private var showShotReview = false
     @State private var showEndEarlyConfirmation = false
+    @State private var showPerformerView = false
     @State private var isPulsing = false
     @State private var isBlinking = false
     @State private var reviewPlayer: AVPlayer?
@@ -107,6 +108,15 @@ struct ShootingModeView: View {
                         .foregroundStyle(.white)
                         .shadow(radius: 10)
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $showPerformerView) {
+            if let shot = viewModel.currentShot {
+                PerformerView(
+                    shot: shot,
+                    shotNumber: viewModel.currentShotNumber,
+                    totalShots: viewModel.totalShots
+                )
             }
         }
     }
@@ -311,6 +321,9 @@ struct ShootingModeView: View {
         VStack(spacing: Theme.Spacing.sm) {
             switch viewModel.recordingState {
             case .idle:
+                if let shot = viewModel.currentShot, shot.hasPerformerContent {
+                    handToActorButton
+                }
                 recordButton
             case .countingDown:
                 Color.clear.frame(height: 72)
@@ -324,6 +337,22 @@ struct ShootingModeView: View {
         .padding(.vertical, Theme.Spacing.lg)
         .frame(maxWidth: .infinity)
         .background(.black.opacity(0.5))
+    }
+
+    private var handToActorButton: some View {
+        Button { showPerformerView = true } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                Image(systemName: "theatermasks.fill")
+                Text("Hand to Actor")
+            }
+            .font(Theme.Typography.body)
+            .foregroundStyle(Theme.Colors.textPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(Theme.Colors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .padding(.horizontal, Theme.Spacing.lg)
     }
 
     private var recordButton: some View {
