@@ -77,7 +77,48 @@ struct CompositionAssembler {
             let bbox = sourceRect.applying(preferredTransform)
             let corrective = CGAffineTransform(translationX: -bbox.origin.x, y: -bbox.origin.y)
             let alignedTransform = preferredTransform.concatenating(corrective)
-            segmentTransforms[segmentIndex] = alignedTransform
+
+            // Phase 3 (crop-zoom). A coverage intercut segment may carry a
+            // `cropRect` — a normalized sub-rectangle of the source's DISPLAY
+            // frame (post-`preferredTransform`) that should be punched into and
+            // scaled up to fill the render canvas. The crop is applied IN DISPLAY
+            // SPACE, i.e. AFTER `alignedTransform` (which is what maps the source
+            // into that display space). Composition order, in CG's row-vector
+            // convention where `A.concatenating(B)` means "apply A, then B":
+            //
+            //   natural --[alignedTransform]--> display --[cropTransform]--> canvas
+            //   composed = alignedTransform.concatenating(cropTransform)
+            //
+            // `renderSize` here is THIS source's display size (the same space the
+            // normalized rect is expressed in), so the crop math is self-consistent
+            // with the orientation transform and the close-up comes out upright
+            // (it inherits `alignedTransform`'s rotation; the crop only scales +
+            // translates within the already-upright display frame).
+            //
+            // INVARIANT — the `cropRect == nil` branch is byte-for-byte the old
+            // behavior: `segmentTransforms[segmentIndex] = alignedTransform`. The
+            // crop machinery never runs for linear films or `.wide` coverage
+            // segments. Audio is untouched here (video-only transform); cropZoom
+            // sub-slices share the wide URL with contiguous source ranges, so the
+            // original take's audio still reconstructs continuously.
+            if let cropRect = segment.cropRect {
+                let cropTransform = Self.cropZoomTransform(for: cropRect, displaySize: renderSize)
+                let composed = alignedTransform.concatenating(cropTransform)
+                segmentTransforms[segmentIndex] = composed
+                Self.logCropDiagnostics(
+                    segmentIndex: segmentIndex,
+                    shotGlobalNumber: segment.shotGlobalNumber,
+                    naturalSize: naturalSize,
+                    preferredTransform: preferredTransform,
+                    alignedTransform: alignedTransform,
+                    cropRect: cropRect,
+                    cropTransform: cropTransform,
+                    composed: composed,
+                    displaySize: renderSize
+                )
+            } else {
+                segmentTransforms[segmentIndex] = alignedTransform
+            }
 
             let track = videoTracks[segment.trackIndex]!
 
@@ -351,6 +392,100 @@ struct CompositionAssembler {
                 params.setVolumeRamp(fromStartVolume: from, toEndVolume: to, timeRange: region.timeRange)
             }
         }
+    }
+
+    // MARK: - Crop-zoom (Phase 3)
+
+    /// Builds the crop-zoom punch-in transform, to be applied IN DISPLAY SPACE
+    /// (i.e. composed AFTER the orientation `alignedTransform`). It maps the
+    /// normalized sub-rect `rect` of the source's displayed frame onto the FULL
+    /// render canvas: the sub-rect's origin → the canvas origin, the sub-rect →
+    /// the whole canvas.
+    ///
+    /// Coordinate space: `rect` is normalized 0...1 in the source's DISPLAY space
+    /// (post-`preferredTransform`) — exactly the space `alignedTransform` outputs
+    /// into. `displaySize` is that displayed frame's pixel size (the engine's
+    /// per-source `naturalSize.applying(preferredTransform).abs()`, e.g. 1080×1920
+    /// portrait). The returned transform therefore lives in the same space as the
+    /// orientation transform, so composing them is well-defined.
+    ///
+    /// Algebra (CG row-vector convention, `p' = p · M`): a display point `(X, Y)`
+    /// maps to `((X - cx)/w, (Y - cy)/h)` where `(cx, cy) = (x·W, y·H)` is the crop
+    /// origin in display pixels and `(w, h)` the normalized crop size. That is:
+    ///
+    ///   a = 1/w,  d = 1/h,  tx = -cx/w = -(x·W)·sx,  ty = -cy/h = -(y·H)·sy
+    ///
+    /// Worked check (display 1080×1920):
+    ///   • full-frame (0,0,1,1) → (a=1,d=1,tx=0,ty=0) = identity ⇒ IDENTICAL to the
+    ///     no-crop path. This is the byte-for-byte guarantee, expressed in math.
+    ///   • left-half (0,0,0.5,1) → (a=2,d=1,tx=0,ty=0): display x∈[0,540] fills
+    ///     x∈[0,1080]; the right half is pushed off-canvas (clipped).
+    ///   • centre punch-in (0.25,0.25,0.5,0.5) → (a=2,d=2,tx=-540,ty=-960): the
+    ///     centre 540×960 region fills the full 1080×1920 — a clean uniform 2×.
+    ///
+    /// Exact-fill semantics: the sub-rect is mapped EXACTLY onto the canvas, so the
+    /// canvas is always fully covered — no letterbox/pillarbox, ever (this is the
+    /// failure mode that produced the split-frame bugs; exact-fill structurally
+    /// rules it out). When the sub-rect's aspect ratio matches the canvas — the
+    /// production case, a CU that crops ≈half of EACH linear dimension and thus
+    /// preserves 9:16 — `sx == sy` and there is no distortion. A non-aspect-matched
+    /// rect is anisotropically stretched to fill rather than letterboxed; emitting
+    /// aspect-correct rects is the builder's (Layer-1) responsibility, not the
+    /// renderer's.
+    static func cropZoomTransform(for rect: NormalizedRect, displaySize: CGSize) -> CGAffineTransform {
+        // Defensive: a zero/negative/non-finite rect can't define a crop. Fall
+        // back to identity ("render the take as-is") rather than divide by zero
+        // or emit NaNs into the composition.
+        guard rect.width > 0, rect.height > 0,
+              rect.width.isFinite, rect.height.isFinite,
+              rect.x.isFinite, rect.y.isFinite else {
+            return .identity
+        }
+        let sx = 1.0 / rect.width
+        let sy = 1.0 / rect.height
+        let cx = rect.x * Double(displaySize.width)   // crop origin in display px
+        let cy = rect.y * Double(displaySize.height)
+        return CGAffineTransform(
+            a: CGFloat(sx), b: 0, c: 0, d: CGFloat(sy),
+            tx: CGFloat(-cx * sx), ty: CGFloat(-cy * sy)
+        )
+    }
+
+    #if DEBUG
+    /// When true, `assemble` prints the full transform chain for each crop
+    /// segment — the same kind of instrumented dump that localized the renderSize
+    /// bug. Off by default so even DEBUG builds stay quiet; tests / manual device
+    /// runs flip it on to capture actual numbers. Never compiled into release.
+    nonisolated(unsafe) static var cropZoomDiagnosticsEnabled = false
+    #endif
+
+    /// Logs the orientation→crop→composed transform chain for a crop segment.
+    /// No-op unless DEBUG and `cropZoomDiagnosticsEnabled`; compiled out of release.
+    static func logCropDiagnostics(
+        segmentIndex: Int,
+        shotGlobalNumber: Int,
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        alignedTransform: CGAffineTransform,
+        cropRect: NormalizedRect,
+        cropTransform: CGAffineTransform,
+        composed: CGAffineTransform,
+        displaySize: CGSize
+    ) {
+        #if DEBUG
+        guard cropZoomDiagnosticsEnabled else { return }
+        func f(_ t: CGAffineTransform) -> String {
+            "[a=\(t.a) b=\(t.b) c=\(t.c) d=\(t.d) tx=\(t.tx) ty=\(t.ty)]"
+        }
+        print("[CropZoom] seg #\(segmentIndex) shot #\(shotGlobalNumber)"
+            + " display=\(Int(displaySize.width))x\(Int(displaySize.height))"
+            + " natural=\(Int(naturalSize.width))x\(Int(naturalSize.height))"
+            + " cropRect=(x=\(cropRect.x) y=\(cropRect.y) w=\(cropRect.width) h=\(cropRect.height))")
+        print("[CropZoom]   preferred=\(f(preferredTransform))")
+        print("[CropZoom]   aligned  =\(f(alignedTransform))")
+        print("[CropZoom]   crop     =\(f(cropTransform))")
+        print("[CropZoom]   composed =\(f(composed))")
+        #endif
     }
 }
 
