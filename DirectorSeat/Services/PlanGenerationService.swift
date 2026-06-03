@@ -222,6 +222,69 @@ class PlanGenerationService {
         A film with weak dialogue feels worse than a film with no dialogue. If you cannot write a strong draft for a particular shot, mark has_spoken_line: false and let the moment be silent. Silence is always better than weak dialogue.
         """
 
+    /// Additive coverage instructions, appended to the base system prompt ONLY
+    /// when `FeatureFlags.useCoverageCutting` is on (see `generate`). With the flag
+    /// off this string is never used, so plan generation is byte-for-byte today's
+    /// behavior. It teaches the model to populate the optional `coverage` field
+    /// (Phase 1 schema) on AT MOST ONE beat — never a rewrite of the base rules.
+    static let coverageInstructions = """
+
+        ===========================
+        ADAPTIVE COVERAGE (crop-zoom intercut)
+        ===========================
+
+        A film MAY cover its single most important dialogue beat from more than one angle so the edit can cut "to whoever is talking." This is the rare EXCEPTION, not a default. Everything in the base instructions above still applies unchanged — this section only adds one optional capability.
+
+        WHEN TO USE COVERAGE — be strict and selective:
+        - Cover AT MOST ONE beat in the entire film: the dramatic peak — the single two-person exchange the whole film is building to (the confession, the line under the argument, the truth that turns the scene). If no one beat clearly earns it, add NO coverage at all.
+        - MOST FILMS SHOULD HAVE ZERO COVERAGE. Coverage is reserved for the one moment it genuinely elevates. When in doubt, leave everything linear.
+        - Coverage requires TWO characters physically together, performing the exchange in ONE shot. Solo films, monologues, pieces-to-camera, voiceover, and films without a real two-person dramatic peak get NO coverage — leave every shot linear (omit the coverage field entirely).
+        - Never cover more than one beat. Never cover small talk, establishing beats, transitions, or ordinary reactions. Only the peak.
+
+        HOW COVERAGE WORKS (this dictates how you must frame it):
+        - The technique is CROP-ZOOM: the user films ONE wide two-shot of the whole exchange, performed once, and the engine digitally punches into each speaker to fake their close-up. This costs the user only ONE performance even though the finished edit shows several "angles," and because both angles come from one camera the eyelines can never break.
+        - Because it punches into ONE wide, that wide MUST be framed for it. On the covered shot, direction_text / camera_placement / actor_direction MUST instruct a TRUE WIDE TWO-SHOT: both people fully in frame with headroom and clear space around each, placed close (e.g. seated across a small table, angled slightly toward each other) so the LEFT person occupies a croppable left portion of the frame and the RIGHT person a croppable right portion. Static, locked phone for the entire take. A tight shot makes crop-zoom impossible — a genuine wide two-shot is mandatory on a covered shot.
+
+        SHOT-BUDGET DISCIPLINE — count performances, not edit segments:
+        - A covered beat is represented by a SINGLE shot in the shots array: the wide two-shot, carrying the coverage metadata. The engine generates the intercut (the fake close-ups) from that one wide. So covering the peak CONSOLIDATES that exchange into one filmed shot — it does NOT spend extra shots.
+        - Do NOT also add separate close-up or reverse shots for a beat you are covering with crop-zoom; the crop-zoom IS those angles. Adding them wastes the budget and defeats the purpose.
+        - The 8-shot maximum still holds. One wide take = one performance. Stay within a sane total: the wide, plus at most one optional guided insert (below).
+
+        THE COVERAGE FIELD — add it to the ONE covered shot. Exact schema (IMPORTANT: the keys INSIDE "angle" are camelCase — "cropZoom", "wide", "separateAngle", "region", "globalShotNumber" — while every other key is snake_case):
+
+        "coverage": {
+          "beat_id": 1,
+          "kind": "crop_zoom_source",
+          "line_runs": [
+            { "speaker": "MAYA", "line_text": "You said you'd be here.", "estimated_seconds": 3,
+              "angle": { "cropZoom": { "region": { "x": 0.0, "y": 0.12, "width": 0.5, "height": 0.5 } } } },
+            { "speaker": "DANIEL", "line_text": "I'm here now.", "estimated_seconds": 2,
+              "angle": { "cropZoom": { "region": { "x": 0.5, "y": 0.12, "width": 0.5, "height": 0.5 } } } },
+            { "speaker": "MAYA", "line_text": "Then why does it feel like you already left.", "estimated_seconds": 3,
+              "angle": { "cropZoom": { "region": { "x": 0.0, "y": 0.12, "width": 0.5, "height": 0.5 } } } }
+          ]
+        }
+
+        FIELD RULES:
+        - beat_id: an integer for the beat. Use 1 for a single covered beat.
+        - kind: "crop_zoom_source" on the wide two-shot you punch into.
+        - line_runs: an ORDERED list of the speaker turns in the exchange, in spoken order, one entry per turn:
+          - speaker: the character speaking this turn (must match a cast role_name).
+          - line_text: that turn's exact line (or null for a silent run). Same language as the rest of the dialogue.
+          - estimated_seconds: a RELATIVE WEIGHT proportional to how long the turn takes to say — NOT a timestamp and NOT a real duration. A longer line gets a bigger number; the engine scales these onto the real take length to place the cuts.
+          - angle: what the edit SHOWS during this turn:
+            * { "cropZoom": { "region": { "x":_, "y":_, "width":_, "height":_ } } } — punch into the wide at this normalized 0..1 rectangle in the DISPLAY frame. Put the LEFT speaker's region on the left (x ≈ 0.0) and the RIGHT speaker's region on the right (x ≈ 0.45–0.5). Every turn by the same speaker reuses that speaker's region.
+            * { "wide": {} } — show the wide untouched. Use one such run (typically the opening turn or a charged shared silence) to establish the two-shot before the punch-ins begin.
+          - The film is portrait 9:16. To avoid a stretched, distorted punch-in, make each region's width and height ROUGHLY EQUAL (e.g. width 0.5, height 0.5) — equal-normalized width/height yields a clean, undistorted close-up. Use y ≈ 0.1–0.2 so the crop frames heads and shoulders, not the floor. Keep width ≥ 0.5 so the close-up stays sharp.
+        - The covered shot still gets a normal dialogue_direction (has_spoken_line: true) holding the exchange's anchor line — set its draft_line to the FIRST line_run's line_text so the shot card reads correctly. line_runs is the authoritative full exchange.
+        - Set the covered wide's recommended_hold_seconds to span the WHOLE exchange (the engine subdivides it across the turns), and audio_treatment to dialogue_priority.
+
+        OPTIONAL — one guided separate angle (use rarely):
+        - If the peak truly needs a real reaction the wide cannot fake, you may add ONE extra shot (a guided insert) carrying "coverage": { "beat_id": <same id>, "kind": "separate_angle", "line_runs": [] }, and reference it from the wide's line_runs with an angle of { "separateAngle": { "globalShotNumber": <that insert shot's global shot number, counting all shots across all scenes 1-based> } }. This costs one extra performance — only do it when it clearly elevates the peak. Default to NOT adding it.
+
+        REMINDER: every shot that is NOT the covered beat omits the coverage field entirely and stays exactly as the base instructions describe. Do not let coverage change the quality, dialogue, or design of any other shot.
+        """
+
     private struct APIResponse: Decodable {
         let content: [ContentBlock]
     }
@@ -244,9 +307,18 @@ class PlanGenerationService {
         }
 
         let userMessage = buildUserMessage(idea: idea, cast: cast, context: context, language: language)
+
+        // Adaptive-coverage gate (intelligent-cutting epic). The coverage
+        // instructions are APPENDED only when the flag is on; when it is off the
+        // effective prompt is exactly `Self.systemPrompt`, so free-form generation
+        // is byte-for-byte unchanged. The template path never sees coverage.
+        let effectiveSystemPrompt = FeatureFlags.useCoverageCutting
+            ? Self.systemPrompt + "\n" + Self.coverageInstructions
+            : Self.systemPrompt
+
         let request = makeRequest(
             apiKey: apiKey,
-            systemPrompt: Self.systemPrompt,
+            systemPrompt: effectiveSystemPrompt,
             userMessage: userMessage,
             maxTokens: 4096
         )
